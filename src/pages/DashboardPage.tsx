@@ -30,6 +30,15 @@ interface DashboardFilters {
   estado: string;
   periodo: string;
   codDiagnostico: string;
+  estadoAuditoria: string;
+  ciudadPrestador: string;
+  tipoDocumento: string;
+  numeroFactura: string;
+  epcCiudad: string;
+  razonSocial: string;
+  tutelaUsuario: string;
+  codigoServicio: string;
+  regionalNormalizada: string;
 }
 
 const emptyFilters: DashboardFilters = {
@@ -39,6 +48,15 @@ const emptyFilters: DashboardFilters = {
   estado: '',
   periodo: '',
   codDiagnostico: '',
+  estadoAuditoria: '',
+  ciudadPrestador: '',
+  tipoDocumento: '',
+  numeroFactura: '',
+  epcCiudad: '',
+  razonSocial: '',
+  tutelaUsuario: '',
+  codigoServicio: '',
+  regionalNormalizada: '',
 };
 
 export default function DashboardPage() {
@@ -48,6 +66,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState<DashboardFilters>(emptyFilters);
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
 
   const [departamentos, setDepartamentos] = useState<string[]>([]);
   const [tiposServicio, setTiposServicio] = useState<string[]>([]);
@@ -55,12 +74,19 @@ export default function DashboardPage() {
   const [estados, setEstados] = useState<string[]>([]);
   const [periodos, setPeriodos] = useState<string[]>([]);
   const [diagnosticos, setDiagnosticos] = useState<string[]>([]);
+  const [estadosAuditoria, setEstadosAuditoria] = useState<string[]>([]);
+  const [ciudadesPrestador, setCiudadesPrestador] = useState<string[]>([]);
+  const [tiposDocumento, setTiposDocumento] = useState<string[]>([]);
+  const [ciudadesPaciente, setCiudadesPaciente] = useState<string[]>([]);
+  const [razonSociales, setRazonSociales] = useState<string[]>([]);
+  const [codigosServicio, setCodigosServicio] = useState<string[]>([]);
+  const [regionalizadas, setRegionalizadas] = useState<string[]>([]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [records, deptos, tipos, contratos, estadosList, periodosList, dxList] = await Promise.all([
+      const [records, deptos, tipos, contratos, estadosList, periodosList, dxList, estadosAud, ciudPrest, tipDoc, ciudPac, razSoc, codServ, regNorm] = await Promise.all([
         getAllCancerRecords(),
         getDistinctValues('epcDepartamento'),
         getDistinctValues('tipoServicio'),
@@ -68,6 +94,13 @@ export default function DashboardPage() {
         getDistinctValues('estado'),
         getDistinctValues('periodo'),
         getDistinctValues('codDiagnostico'),
+        getDistinctValues('estadoAuditoria'),
+        getDistinctValues('ciudadPrestador'),
+        getDistinctValues('tipoDocumento'),
+        getDistinctValues('epcCiudad'),
+        getDistinctValues('razonSocial'),
+        getDistinctValues('codigoServicio'),
+        getDistinctValues('regionalNormalizada'),
       ]);
       setAllRecords(records);
       setDepartamentos(deptos);
@@ -76,6 +109,13 @@ export default function DashboardPage() {
       setEstados(estadosList);
       setPeriodos(periodosList);
       setDiagnosticos(dxList);
+      setEstadosAuditoria(estadosAud);
+      setCiudadesPrestador(ciudPrest);
+      setTiposDocumento(tipDoc);
+      setCiudadesPaciente(ciudPac);
+      setRazonSociales(razSoc);
+      setCodigosServicio(codServ);
+      setRegionalizadas(regNorm);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error cargando datos');
     } finally {
@@ -93,6 +133,15 @@ export default function DashboardPage() {
       if (filters.estado && r.estado !== filters.estado) return false;
       if (filters.periodo && r.periodo !== filters.periodo) return false;
       if (filters.codDiagnostico && r.codDiagnostico !== filters.codDiagnostico) return false;
+      if (filters.estadoAuditoria && r.estadoAuditoria !== filters.estadoAuditoria) return false;
+      if (filters.ciudadPrestador && r.ciudadPrestador !== filters.ciudadPrestador) return false;
+      if (filters.tipoDocumento && r.tipoDocumento !== filters.tipoDocumento) return false;
+      if (filters.numeroFactura && !r.numeroFactura?.includes(filters.numeroFactura)) return false;
+      if (filters.epcCiudad && r.epcCiudad !== filters.epcCiudad) return false;
+      if (filters.razonSocial && r.razonSocial !== filters.razonSocial) return false;
+      if (filters.tutelaUsuario && r.tutelaUsuario !== filters.tutelaUsuario) return false;
+      if (filters.codigoServicio && r.codigoServicio !== filters.codigoServicio) return false;
+      if (filters.regionalNormalizada && r.regionalNormalizada !== filters.regionalNormalizada) return false;
       return true;
     });
   }, [allRecords, filters]);
@@ -189,6 +238,14 @@ export default function DashboardPage() {
   const updateFilter = (key: keyof DashboardFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
+  const removeFilter = (key: keyof DashboardFilters) => {
+    updateFilter(key, '');
+  };
+  const advancedFiltersActive = [
+    filters.estadoAuditoria, filters.ciudadPrestador, filters.tipoDocumento, 
+    filters.numeroFactura, filters.epcCiudad, filters.razonSocial, 
+    filters.tutelaUsuario, filters.codigoServicio, filters.regionalNormalizada
+  ].filter(v => v).length > 0;
 
   if (loading) {
     return (
@@ -227,24 +284,24 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters - Main Row */}
       <div className="dashboard-filters">
         <div className="filter-field">
-          <label><HiFilter style={{ display: 'inline', verticalAlign: 'middle' }} /> Departamento</label>
+          <label><HiFilter size={14} style={{ display: 'inline', marginRight: '0.25rem' }} />Depto</label>
           <select value={filters.epcDepartamento} onChange={e => updateFilter('epcDepartamento', e.target.value)}>
             <option value="">Todos</option>
             {departamentos.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
         <div className="filter-field">
-          <label>Tipo Servicio</label>
+          <label>Servicio</label>
           <select value={filters.tipoServicio} onChange={e => updateFilter('tipoServicio', e.target.value)}>
             <option value="">Todos</option>
             {tiposServicio.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
         <div className="filter-field">
-          <label>Tipo Contrato</label>
+          <label>Contrato</label>
           <select value={filters.tipoContrato} onChange={e => updateFilter('tipoContrato', e.target.value)}>
             <option value="">Todos</option>
             {tiposContrato.map(t => <option key={t} value={t}>{t}</option>)}
@@ -271,35 +328,132 @@ export default function DashboardPage() {
             {diagnosticos.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
-        {activeFilterCount > 0 && (
-          <div className="filter-actions-row">
+        <div className="filter-actions-row">
+          <button onClick={() => setAdvancedFiltersOpen(!advancedFiltersOpen)} className="btn btn-outline" style={{ fontSize: '0.8125rem', padding: '0.4375rem 0.625rem' }}>
+            {advancedFiltersOpen ? '▼' : '▶'} Avanzado {advancedFiltersActive && <span style={{ color: 'var(--brand)', fontWeight: 'bold' }}>●</span>}
+          </button>
+          {activeFilterCount > 0 && (
             <button onClick={clearFilters} className="btn btn-outline">
               <HiX /> Limpiar ({activeFilterCount})
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      {/* Filters - Advanced Section */}
+      {advancedFiltersOpen && (
+        <div className="dashboard-filters-advanced">
+          <div className="filter-field">
+            <label>Estado Auditoria</label>
+            <select value={filters.estadoAuditoria} onChange={e => updateFilter('estadoAuditoria', e.target.value)}>
+              <option value="">Todos</option>
+              {estadosAuditoria.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label>Ciudad Prestador</label>
+            <select value={filters.ciudadPrestador} onChange={e => updateFilter('ciudadPrestador', e.target.value)}>
+              <option value="">Todos</option>
+              {ciudadesPrestador.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label>Tipo Documento</label>
+            <select value={filters.tipoDocumento} onChange={e => updateFilter('tipoDocumento', e.target.value)}>
+              <option value="">Todos</option>
+              {tiposDocumento.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label>N° Factura</label>
+            <input type="text" placeholder="Buscar..." value={filters.numeroFactura} onChange={e => updateFilter('numeroFactura', e.target.value)} />
+          </div>
+          <div className="filter-field">
+            <label>Ciudad Paciente</label>
+            <select value={filters.epcCiudad} onChange={e => updateFilter('epcCiudad', e.target.value)}>
+              <option value="">Todos</option>
+              {ciudadesPaciente.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label>Institucion</label>
+            <select value={filters.razonSocial} onChange={e => updateFilter('razonSocial', e.target.value)}>
+              <option value="">Todos</option>
+              {razonSociales.slice(0, 50).map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label>Cod. Servicio</label>
+            <select value={filters.codigoServicio} onChange={e => updateFilter('codigoServicio', e.target.value)}>
+              <option value="">Todos</option>
+              {codigosServicio.slice(0, 100).map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label>Regional</label>
+            <select value={filters.regionalNormalizada} onChange={e => updateFilter('regionalNormalizada', e.target.value)}>
+              <option value="">Todos</option>
+              {regionalizadas.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div className="filter-field">
+            <label>Tutela Usuario</label>
+            <select value={filters.tutelaUsuario} onChange={e => updateFilter('tutelaUsuario', e.target.value)}>
+              <option value="">Todos</option>
+              <option value="Si">Si</option>
+              <option value="No">No</option>
+            </select>
+          </div>
+        </div>
+      )}
 
       {/* Active filter tags */}
       {activeFilterCount > 0 && (
         <div className="active-filters">
           {filters.epcDepartamento && (
-            <span className="filter-tag">Depto: {filters.epcDepartamento} <button onClick={() => updateFilter('epcDepartamento', '')}><HiX /></button></span>
+            <span className="filter-tag">Depto: {filters.epcDepartamento} <button onClick={() => removeFilter('epcDepartamento')}><HiX size={12} /></button></span>
           )}
           {filters.tipoServicio && (
-            <span className="filter-tag">Servicio: {filters.tipoServicio} <button onClick={() => updateFilter('tipoServicio', '')}><HiX /></button></span>
+            <span className="filter-tag">Servicio: {filters.tipoServicio} <button onClick={() => removeFilter('tipoServicio')}><HiX size={12} /></button></span>
           )}
           {filters.tipoContrato && (
-            <span className="filter-tag">Contrato: {filters.tipoContrato} <button onClick={() => updateFilter('tipoContrato', '')}><HiX /></button></span>
+            <span className="filter-tag">Contrato: {filters.tipoContrato} <button onClick={() => removeFilter('tipoContrato')}><HiX size={12} /></button></span>
           )}
           {filters.estado && (
-            <span className="filter-tag">Estado: {filters.estado} <button onClick={() => updateFilter('estado', '')}><HiX /></button></span>
+            <span className="filter-tag">Estado: {filters.estado} <button onClick={() => removeFilter('estado')}><HiX size={12} /></button></span>
           )}
           {filters.periodo && (
-            <span className="filter-tag">Periodo: {filters.periodo} <button onClick={() => updateFilter('periodo', '')}><HiX /></button></span>
+            <span className="filter-tag">Periodo: {filters.periodo} <button onClick={() => removeFilter('periodo')}><HiX size={12} /></button></span>
           )}
           {filters.codDiagnostico && (
-            <span className="filter-tag">Dx: {filters.codDiagnostico} <button onClick={() => updateFilter('codDiagnostico', '')}><HiX /></button></span>
+            <span className="filter-tag">Dx: {filters.codDiagnostico} <button onClick={() => removeFilter('codDiagnostico')}><HiX size={12} /></button></span>
+          )}
+          {filters.estadoAuditoria && (
+            <span className="filter-tag">Auditoria: {filters.estadoAuditoria} <button onClick={() => removeFilter('estadoAuditoria')}><HiX size={12} /></button></span>
+          )}
+          {filters.ciudadPrestador && (
+            <span className="filter-tag">Ciudad Prest.: {filters.ciudadPrestador} <button onClick={() => removeFilter('ciudadPrestador')}><HiX size={12} /></button></span>
+          )}
+          {filters.tipoDocumento && (
+            <span className="filter-tag">Tipo Doc.: {filters.tipoDocumento} <button onClick={() => removeFilter('tipoDocumento')}><HiX size={12} /></button></span>
+          )}
+          {filters.numeroFactura && (
+            <span className="filter-tag">Factura: {filters.numeroFactura} <button onClick={() => removeFilter('numeroFactura')}><HiX size={12} /></button></span>
+          )}
+          {filters.epcCiudad && (
+            <span className="filter-tag">Cd. Pac.: {filters.epcCiudad} <button onClick={() => removeFilter('epcCiudad')}><HiX size={12} /></button></span>
+          )}
+          {filters.razonSocial && (
+            <span className="filter-tag">Institucion: {filters.razonSocial.substring(0, 15)}... <button onClick={() => removeFilter('razonSocial')}><HiX size={12} /></button></span>
+          )}
+          {filters.codigoServicio && (
+            <span className="filter-tag">Cod.Serv.: {filters.codigoServicio} <button onClick={() => removeFilter('codigoServicio')}><HiX size={12} /></button></span>
+          )}
+          {filters.regionalNormalizada && (
+            <span className="filter-tag">Regional: {filters.regionalNormalizada} <button onClick={() => removeFilter('regionalNormalizada')}><HiX size={12} /></button></span>
+          )}
+          {filters.tutelaUsuario && (
+            <span className="filter-tag">Tutela: {filters.tutelaUsuario} <button onClick={() => removeFilter('tutelaUsuario')}><HiX size={12} /></button></span>
           )}
         </div>
       )}

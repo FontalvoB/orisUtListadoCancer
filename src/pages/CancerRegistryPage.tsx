@@ -574,80 +574,226 @@ export default function CancerRegistryPage() {
       )}
 
       {/* Stats */}
-      <div className="table-stats">
-        <span>{totalCount.toLocaleString()} registros totales</span>
-        <span>Página {currentPage + 1} de {totalPages} · Mostrando {filteredRecords.length} registros</span>
+      <div className="table-stats-enhanced">
+        <div className="stat-item">
+          <span className="stat-value">{totalCount.toLocaleString()}</span>
+          <span className="stat-label">Total de Registros</span>
+        </div>
+        <div className="stat-item">
+          <span className="stat-value">{filteredRecords.length.toLocaleString()}</span>
+          <span className="stat-label">En Esta Página</span>
+        </div>
+        <div className="stat-item">
+          <span className="stat-value">{currentPage + 1}/{totalPages}</span>
+          <span className="stat-label">Página Actual</span>
+        </div>
       </div>
 
       {/* Table */}
       {loading ? (
         <div className="loading-inline"><div className="spinner" /><p>Cargando registros...</p></div>
+      ) : filteredRecords.length === 0 ? (
+        <div className="empty-state-container">
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <HiSearch />
+            </div>
+            <h3>No se encontraron registros</h3>
+            <p>Intenta ajustar los filtros o búsquedas</p>
+          </div>
+        </div>
       ) : (
-        <div className="table-container table-scroll">
-          <table className="data-table">
-            <thead>
-              <tr>
-                {TABLE_COLUMNS.map(col => (
-                  <th key={col.key} style={{ minWidth: col.width }}>{col.label}</th>
-                ))}
-                <th style={{ minWidth: '120px' }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRecords.map(record => (
-                <tr key={record.id}>
-                  {TABLE_COLUMNS.map(col => (
-                    <td key={col.key} title={String(record[col.key] ?? '')}>
-                      <span className="cell-truncate">
-                        {renderCellValue(record, col.key)}
-                      </span>
-                    </td>
+        <>
+          {/* Desktop Table */}
+          <div className="table-wrapper-desktop">
+            <div className="table-container">
+              <table className="data-table-enhanced">
+                <thead>
+                  <tr>
+                    {TABLE_COLUMNS.map(col => (
+                      <th key={col.key} style={{ minWidth: col.width }} className="table-header-cell">
+                        <span className="header-content">{col.label}</span>
+                      </th>
+                    ))}
+                    <th className="table-header-actions">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRecords.map((record, idx) => (
+                    <tr key={record.id} className={`table-row-item ${idx % 2 === 0 ? 'even' : 'odd'}`}>
+                      {TABLE_COLUMNS.map(col => (
+                        <td key={col.key} className="table-data-cell">
+                          <span className="cell-content" title={String(record[col.key] ?? '')}>
+                            {col.key === 'estado' ? (
+                              <span className={`status-badge status-${String(record[col.key] ?? '').toLowerCase()}`}>
+                                {renderCellValue(record, col.key)}
+                              </span>
+                            ) : (
+                              renderCellValue(record, col.key)
+                            )}
+                          </span>
+                        </td>
+                      ))}
+                      <td className="table-actions-cell">
+                        <div className="actions-group">
+                          <button 
+                            onClick={() => viewDetail(record)} 
+                            className="action-btn action-view" 
+                            title="Ver detalle"
+                            aria-label="Ver detalle del registro"
+                          >
+                            <HiEye />
+                            <span className="btn-tooltip">Ver</span>
+                          </button>
+                          {canEdit && (
+                            <button 
+                              onClick={() => startEdit(record)} 
+                              className="action-btn action-edit" 
+                              title="Editar"
+                              aria-label="Editar registro"
+                            >
+                              <HiPencil />
+                              <span className="btn-tooltip">Editar</span>
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button 
+                              onClick={() => handleDelete(record)} 
+                              className="action-btn action-delete" 
+                              title="Eliminar"
+                              aria-label="Eliminar registro"
+                            >
+                              <HiTrash />
+                              <span className="btn-tooltip">Eliminar</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
                   ))}
-                  <td>
-                    <div className="actions">
-                      <button onClick={() => viewDetail(record)} className="btn-icon btn-edit" title="Ver detalle">
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Mobile Cards */}
+          <div className="table-wrapper-mobile">
+            <div className="cards-container">
+              {filteredRecords.map((record) => (
+                <div key={record.id} className="record-card">
+                  <div className="card-header">
+                    <div className="card-title-group">
+                      <h4 className="card-title">{record.radicado}</h4>
+                      <span className={`status-badge status-${String(record.estado ?? '').toLowerCase()}`}>
+                        {record.estado}
+                      </span>
+                    </div>
+                    <div className="card-actions-mobile">
+                      <button 
+                        onClick={() => viewDetail(record)} 
+                        className="action-btn-mobile action-view"
+                        title="Ver detalle"
+                      >
                         <HiEye />
                       </button>
                       {canEdit && (
-                          <button onClick={() => startEdit(record)} className="btn-icon btn-edit" title="Editar">
-                            <HiPencil />
-                          </button>
+                        <button 
+                          onClick={() => startEdit(record)} 
+                          className="action-btn-mobile action-edit"
+                          title="Editar"
+                        >
+                          <HiPencil />
+                        </button>
                       )}
                       {canDelete && (
-                          <button onClick={() => handleDelete(record)} className="btn-icon btn-delete" title="Eliminar">
-                            <HiTrash />
-                          </button>
+                        <button 
+                          onClick={() => handleDelete(record)} 
+                          className="action-btn-mobile action-delete"
+                          title="Eliminar"
+                        >
+                          <HiTrash />
+                        </button>
                       )}
                     </div>
-                  </td>
-                </tr>
+                  </div>
+                  <div className="card-body">
+                    <div className="card-field">
+                      <span className="field-label">Documento</span>
+                      <span className="field-value">{record.numeroDocumento}</span>
+                    </div>
+                    <div className="card-field">
+                      <span className="field-label">Institución</span>
+                      <span className="field-value">{record.razonSocial}</span>
+                    </div>
+                    <div className="card-field">
+                      <span className="field-label">Diagnóstico</span>
+                      <span className="field-value">{record.descDiagnostico}</span>
+                    </div>
+                    <div className="card-field">
+                      <span className="field-label">Cod. Dx</span>
+                      <span className="field-value">{record.codDiagnostico}</span>
+                    </div>
+                    <div className="card-field">
+                      <span className="field-label">Tipo de Servicio</span>
+                      <span className="field-value">{record.tipoServicio}</span>
+                    </div>
+                    <div className="card-field">
+                      <span className="field-label">Valor Total</span>
+                      <span className="field-value field-value-currency">{formatCurrency(record.valorTotal as number)}</span>
+                    </div>
+                    <div className="card-field">
+                      <span className="field-label">Departamento</span>
+                      <span className="field-value">{record.epcDepartamento}</span>
+                    </div>
+                    <div className="card-field">
+                      <span className="field-label">Período</span>
+                      <span className="field-value">{record.periodo}</span>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-          {filteredRecords.length === 0 && <p className="no-data">No se encontraron registros</p>}
-        </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Pagination */}
-      <div className="pagination">
-        <button onClick={handlePrevPage} disabled={currentPage === 0} className="btn btn-secondary">
-          <HiChevronLeft /> Anterior
+      <div className="pagination-enhanced">
+        <button 
+          onClick={handlePrevPage} 
+          disabled={currentPage === 0} 
+          className="btn btn-pagination"
+          title="Página anterior"
+        >
+          <HiChevronLeft /> <span className="btn-label">Anterior</span>
         </button>
-        <div className="page-size-selector">
-          <label htmlFor="pageSize">Registros por página:</label>
-          <select
-            id="pageSize"
-            value={pageSize}
-            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-          >
-            {PAGE_SIZE_OPTIONS.map(size => (
-              <option key={size} value={size}>{size}</option>
-            ))}
-          </select>
+        
+        <div className="pagination-center">
+          <div className="page-size-selector-enhanced">
+            <label htmlFor="pageSize">Por página:</label>
+            <select
+              id="pageSize"
+              value={pageSize}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              className="size-select"
+            >
+              {PAGE_SIZE_OPTIONS.map(size => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </div>
+          <span className="page-info-enhanced">
+            Página <strong>{currentPage + 1}</strong> de <strong>{totalPages}</strong>
+          </span>
         </div>
-        <span className="page-info">Página {currentPage + 1} de {totalPages}</span>
-        <button onClick={handleNextPage} disabled={!hasMore} className="btn btn-secondary">
-          Siguiente <HiChevronRight />
+
+        <button 
+          onClick={handleNextPage} 
+          disabled={!hasMore} 
+          className="btn btn-pagination"
+          title="Página siguiente"
+        >
+          <span className="btn-label">Siguiente</span> <HiChevronRight />
         </button>
       </div>
 
