@@ -21,7 +21,7 @@ import * as XLSX from 'xlsx';
 import { EXCEL_TO_FIELD_MAP } from '../types';
 import type { DocumentSnapshot } from 'firebase/firestore';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100];
 
 // Visible columns in table (subset of all 32 for readability)
 const TABLE_COLUMNS: { key: keyof CancerRecord; label: string; width?: string }[] = [
@@ -51,6 +51,9 @@ export default function CancerRegistryPage() {
   const [hasMore, setHasMore] = useState(false);
   const [pageHistory, setPageHistory] = useState<(DocumentSnapshot | null)[]>([null]);
   const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+
+  const totalPages = totalCount > 0 ? Math.ceil(totalCount / pageSize) : 1;
 
   // Filters
   const [showFilters, setShowFilters] = useState(false);
@@ -76,13 +79,15 @@ export default function CancerRegistryPage() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const loadPage = useCallback(async (startAfterDoc: DocumentSnapshot | null = null) => {
+  const loadPage = useCallback(async (startAfterDoc: DocumentSnapshot | null = null, skipCount = false) => {
     setLoading(true);
     setError('');
     try {
-      const result: PaginatedResult = await getCancerRecordsPaginated(PAGE_SIZE, startAfterDoc, filters);
+      const result: PaginatedResult = await getCancerRecordsPaginated(pageSize, startAfterDoc, filters, skipCount);
       setRecords(result.records);
-      setTotalCount(result.totalCount);
+      if (!skipCount) {
+        setTotalCount(result.totalCount);
+      }
       setLastDoc(result.lastDoc);
       setHasMore(result.hasMore);
     } catch (err) {
@@ -90,7 +95,7 @@ export default function CancerRegistryPage() {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, pageSize]);
 
   useEffect(() => {
     loadPage(null);
@@ -103,14 +108,20 @@ export default function CancerRegistryPage() {
     const newHistory = [...pageHistory, lastDoc];
     setPageHistory(newHistory);
     setCurrentPage(currentPage + 1);
-    loadPage(lastDoc);
+    loadPage(lastDoc, true);
   };
 
   const handlePrevPage = () => {
     if (currentPage <= 0) return;
     const prevDoc = pageHistory[currentPage - 1] ?? null;
     setCurrentPage(currentPage - 1);
-    loadPage(prevDoc);
+    loadPage(prevDoc, true);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(0);
+    setPageHistory([null]);
   };
 
   const applyFilters = () => {
@@ -565,7 +576,7 @@ export default function CancerRegistryPage() {
       {/* Stats */}
       <div className="table-stats">
         <span>{totalCount.toLocaleString()} registros totales</span>
-        <span>Página {currentPage + 1} · Mostrando {filteredRecords.length} de {records.length}</span>
+        <span>Página {currentPage + 1} de {totalPages} · Mostrando {filteredRecords.length} registros</span>
       </div>
 
       {/* Table */}
@@ -622,7 +633,19 @@ export default function CancerRegistryPage() {
         <button onClick={handlePrevPage} disabled={currentPage === 0} className="btn btn-secondary">
           <HiChevronLeft /> Anterior
         </button>
-        <span className="page-info">Página {currentPage + 1}</span>
+        <div className="page-size-selector">
+          <label htmlFor="pageSize">Registros por página:</label>
+          <select
+            id="pageSize"
+            value={pageSize}
+            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+          >
+            {PAGE_SIZE_OPTIONS.map(size => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
+        <span className="page-info">Página {currentPage + 1} de {totalPages}</span>
         <button onClick={handleNextPage} disabled={!hasMore} className="btn btn-secondary">
           Siguiente <HiChevronRight />
         </button>

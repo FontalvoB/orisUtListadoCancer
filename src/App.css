@@ -1000,6 +1000,7 @@
   justify-content: center;
   gap: 1rem;
   margin-top: 1.25rem;
+  flex-wrap: wrap;
 }
 
 .page-info {
@@ -1007,6 +1008,28 @@
   font-size: 0.8125rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.page-size-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.page-size-selector label {
+  white-space: nowrap;
+}
+
+.page-size-selector select {
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  cursor: pointer;
 }
 
 /* ==================== BADGES ==================== */

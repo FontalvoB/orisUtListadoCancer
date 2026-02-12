@@ -95,7 +95,8 @@ export interface PaginatedResult {
 export const getCancerRecordsPaginated = async (
   pageSize: number = 50,
   lastDocument: DocumentSnapshot | null = null,
-  filters: CancerFilters = {}
+  filters: CancerFilters = {},
+  skipCount: boolean = false
 ): Promise<PaginatedResult> => {
   const constraints: QueryConstraint[] = [];
 
@@ -136,20 +137,23 @@ export const getCancerRecordsPaginated = async (
   const q = query(collection(db, COLLECTION), ...constraints);
   const snap = await getDocs(q);
 
-  // For count, rebuild query without pagination constraints
-  const countQueryConstraints: QueryConstraint[] = [];
-  if (filters.codDiagnostico) countQueryConstraints.push(where('codDiagnostico', '==', filters.codDiagnostico));
-  if (filters.epcDepartamento) countQueryConstraints.push(where('epcDepartamento', '==', filters.epcDepartamento));
-  if (filters.tipoServicio) countQueryConstraints.push(where('tipoServicio', '==', filters.tipoServicio));
-  if (filters.tipoContrato) countQueryConstraints.push(where('tipoContrato', '==', filters.tipoContrato));
-  if (filters.estado) countQueryConstraints.push(where('estado', '==', filters.estado));
-  if (filters.periodo) countQueryConstraints.push(where('periodo', '==', filters.periodo));
-  if (filters.ciudadPrestador) countQueryConstraints.push(where('ciudadPrestador', '==', filters.ciudadPrestador));
-  if (filters.numeroDocumento) countQueryConstraints.push(where('numeroDocumento', '==', filters.numeroDocumento));
+  // Only fetch count when needed (first page load or filter change), not on every page turn
+  let totalCount = 0;
+  if (!skipCount) {
+    const countQueryConstraints: QueryConstraint[] = [];
+    if (filters.codDiagnostico) countQueryConstraints.push(where('codDiagnostico', '==', filters.codDiagnostico));
+    if (filters.epcDepartamento) countQueryConstraints.push(where('epcDepartamento', '==', filters.epcDepartamento));
+    if (filters.tipoServicio) countQueryConstraints.push(where('tipoServicio', '==', filters.tipoServicio));
+    if (filters.tipoContrato) countQueryConstraints.push(where('tipoContrato', '==', filters.tipoContrato));
+    if (filters.estado) countQueryConstraints.push(where('estado', '==', filters.estado));
+    if (filters.periodo) countQueryConstraints.push(where('periodo', '==', filters.periodo));
+    if (filters.ciudadPrestador) countQueryConstraints.push(where('ciudadPrestador', '==', filters.ciudadPrestador));
+    if (filters.numeroDocumento) countQueryConstraints.push(where('numeroDocumento', '==', filters.numeroDocumento));
 
-  const countQuery = query(collection(db, COLLECTION), ...countQueryConstraints);
-  const countSnap = await getCountFromServer(countQuery);
-  const totalCount = countSnap.data().count;
+    const countQuery = query(collection(db, COLLECTION), ...countQueryConstraints);
+    const countSnap = await getCountFromServer(countQuery);
+    totalCount = countSnap.data().count;
+  }
 
   const records = snap.docs.map(docToRecord);
   const lastDoc = snap.docs[snap.docs.length - 1] ?? null;
