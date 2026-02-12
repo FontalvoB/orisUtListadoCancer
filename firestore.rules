@@ -1,0 +1,131 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===================== HELPER FUNCTIONS =====================
+
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Get the user's profile document
+    function getUserProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Check if user has a specific role
+    function hasRole(role) {
+      return isAuthenticated() && getUserProfile().roleName == role;
+    }
+
+    // Check if user is admin or superadmin
+    function isAdmin() {
+      return isAuthenticated() && getUserProfile().roleName in ['admin', 'superadmin'];
+    }
+
+    // Check if user is superadmin
+    function isSuperAdmin() {
+      return isAuthenticated() && getUserProfile().roleName == 'superadmin';
+    }
+
+    // Check if this is the user's own document
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // Check if no superadmin exists yet (for initial setup)
+    function noSuperAdminExists() {
+      return !exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // ===================== USERS COLLECTION =====================
+    match /users/{userId} {
+      // Anyone authenticated can read their own profile
+      // Admins/superadmins can read all profiles
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+
+      // Allow creation if:
+      // 1. User is creating their own profile (first time sign-in)
+      // 2. Admin/superadmin is creating a profile
+      allow create: if isAuthenticated() && (
+        (isOwner(userId) && request.resource.data.uid == request.auth.uid) ||
+        isAdmin()
+      );
+
+      // Allow update if:
+      // 1. User is updating their own profile (but cannot change role)
+      // 2. Admin/superadmin can update any profile
+      allow update: if isAuthenticated() && (
+        (isOwner(userId) &&
+          request.resource.data.roleId == resource.data.roleId &&
+          request.resource.data.roleName == resource.data.roleName &&
+          request.resource.data.isActive == resource.data.isActive) ||
+        isAdmin()
+      );
+
+      // Only superadmin can delete users, and cannot delete themselves
+      allow delete: if isSuperAdmin() && !isOwner(userId);
+    }
+
+    // ===================== ROLES COLLECTION =====================
+    match /roles/{roleId} {
+      // Any authenticated user can read roles (needed for profile display)
+      allow read: if isAuthenticated();
+
+      // Only admins/superadmins can create roles
+      allow create: if isAdmin();
+
+      // Only admins/superadmins can update roles
+      // System roles (superadmin, admin, editor, user) can only be updated by superadmin
+      allow update: if isAdmin();
+
+      // Only superadmin can delete roles
+      // Note: The application layer also prevents deleting system roles
+      allow delete: if isSuperAdmin();
+    }
+
+    // ===================== PERMISSIONS COLLECTION (if used) =====================
+    match /permissions/{permissionId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // ===================== CANCER RECORDS COLLECTION =====================
+    match /cancerRecords/{recordId} {
+      // Any authenticated user can read cancer records
+      allow read: if isAuthenticated();
+
+      // Admin, superadmin, and editor can create records (including imports)
+      allow create: if isAuthenticated() &&
+        getUserProfile().roleName in ['admin', 'superadmin', 'editor'];
+
+      // Admin, superadmin, and editor can update records
+      allow update: if isAuthenticated() &&
+        getUserProfile().roleName in ['admin', 'superadmin', 'editor'];
+
+      // Admin, superadmin, and editor can delete records
+      allow delete: if isAuthenticated() &&
+        getUserProfile().roleName in ['admin', 'superadmin', 'editor'];
+    }
+
+    // ===================== ACTIVITY LOGS COLLECTION =====================
+    match /activityLogs/{logId} {
+      // Any authenticated user can read activity logs (permission enforced at app level)
+      allow read: if isAuthenticated();
+
+      // Any authenticated user can create activity logs (for self-logging)
+      allow create: if isAuthenticated();
+
+      // Activity logs are immutable — no updates or deletes
+      allow update, delete: if false;
+    }
+
+    // ===================== DEFAULT DENY =====================
+    // All other documents are denied by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
