@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getUserProfile, createUserWithRole } from '../services/firestore';
-import { FcGoogle } from 'react-icons/fc';
 import { HiMail, HiLockClosed, HiUser } from 'react-icons/hi';
+import ImageCarousel from '../components/ImageCarousel';
 
 export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
@@ -13,7 +13,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { login, register, loginWithGoogle } = useAuth();
+  const { login, register } = useAuth();
 
   const handleAfterAuth = async (uid: string, email: string, displayName: string, photoURL: string) => {
     const profile = await getUserProfile(uid);
@@ -61,24 +61,45 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleDemoLogin = async () => {
     setError('');
     setLoading(true);
     try {
-      const fbUser = await loginWithGoogle();
-      await handleAfterAuth(
-        fbUser.uid,
-        fbUser.email ?? '',
-        fbUser.displayName ?? '',
-        fbUser.photoURL ?? ''
-      );
+      const demoEmail = 'usuario@demo.com';
+      const demoPassword = 'Demo1234';
+      const demoName = 'Usuario Demo';
+
+      try {
+        // Intentar iniciar sesión
+        await login(demoEmail, demoPassword);
+      } catch (loginErr: unknown) {
+        // Si el usuario no existe, registrarlo
+        const errorCode = (loginErr as any)?.code || (loginErr as any)?.message || '';
+        if (errorCode.includes('user-not-found') || errorCode.includes('invalid-credential')) {
+          // Registrar nuevo usuario
+          const fbUser = await register(demoEmail, demoPassword, demoName);
+          await handleAfterAuth(fbUser.uid, demoEmail, demoName, '');
+          return;
+        } else {
+          throw loginErr;
+        }
+      }
+
+      // Si login fue exitoso
+      const { auth } = await import('../config/firebase');
+      const fbUser = auth.currentUser;
+      if (fbUser) {
+        await handleAfterAuth(
+          fbUser.uid,
+          fbUser.email ?? demoEmail,
+          fbUser.displayName ?? demoName,
+          fbUser.photoURL ?? ''
+        );
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
-      if (message.includes('auth/popup-closed-by-user')) {
-        setError('Inicio de sesion cancelado');
-      } else {
-        setError(message);
-      }
+      console.error('Error en demo login:', err);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -87,6 +108,7 @@ export default function LoginPage() {
   return (
     <div className="login-page">
       <div className="login-left">
+        <ImageCarousel />
         <div className="login-card">
           <div className="login-logo">
             <div className="login-logo-icon">OU</div>
@@ -150,9 +172,8 @@ export default function LoginPage() {
 
           <div className="divider">o continua con</div>
 
-          <button onClick={handleGoogleLogin} className="btn btn-google" disabled={loading}>
-            <FcGoogle size={20} />
-            Google
+          <button onClick={handleDemoLogin} className="btn btn-demo" disabled={loading} style={{ width: '100%', marginTop: '0.5rem', padding: '0.75rem', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '500' }}>
+            {loading ? 'Cargando...' : 'Ingresar como usuario'}
           </button>
 
           <p className="toggle-auth">

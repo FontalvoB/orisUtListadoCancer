@@ -11,15 +11,16 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 
-const CHART_COLORS = ['#0f766e', '#0ea5e9', '#f59e0b', '#ef4444', '#6366f1', '#06b6d4', '#84cc16', '#ec4899', '#f97316', '#8b5cf6'];
+const CHART_COLORS = ['#0d9488', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#22c55e', '#ec4899', '#f97316', '#6366f1'];
 
 const TOOLTIP_STYLE = {
-  borderRadius: 12,
-  border: '1px solid var(--border)',
-  fontSize: 12,
-  boxShadow: 'var(--shadow-lg)',
-  padding: '10px 14px',
+  borderRadius: 10,
+  border: '1px solid #e2e8f0',
+  fontSize: 11,
+  boxShadow: '0 8px 24px -4px rgba(0,0,0,0.1)',
+  padding: '8px 12px',
   background: '#ffffff',
+  lineHeight: '1.5',
 };
 
 interface DashboardFilters {
@@ -216,12 +217,12 @@ export default function DashboardPage() {
           <h1>Dashboard Oncologico</h1>
           <p className="page-subtitle">
             {'Bienvenido, '}
-            <strong style={{ color: 'var(--text-secondary)' }}>{user?.displayName ?? user?.email}</strong>
+            <strong style={{ color: 'var(--text-tertiary)', fontWeight: 500 }}>{user?.displayName ?? user?.email}</strong>
           </p>
         </div>
         <div className="header-actions">
           <button onClick={loadData} className="btn btn-secondary">
-            <HiRefresh /> Actualizar
+            <HiRefresh size={14} /> Actualizar
           </button>
         </div>
       </div>
@@ -306,59 +307,107 @@ export default function DashboardPage() {
       {/* KPI Cards */}
       <div className="kpi-row">
         <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Registros</span>
-            <div className="kpi-icon" style={{ background: 'rgba(15,118,110,0.08)', color: 'var(--brand)' }}><HiDocumentReport /></div>
+          <div className="kpi-main">
+            <div className="kpi-icon" style={{ background: 'rgba(13,148,136,0.08)', color: 'var(--brand)', borderColor: 'rgba(13,148,136,0.2)' }}>
+              <HiDocumentReport size={20} />
+            </div>
+            <div className="kpi-info">
+              <span className="kpi-label">Registros</span>
+              <div className="kpi-value">{kpis.totalRegistros.toLocaleString()}</div>
+            </div>
           </div>
-          <div className="kpi-value">{kpis.totalRegistros.toLocaleString()}</div>
-          <div className="kpi-sub">{kpis.diagnosticosUnicos} diagnosticos unicos</div>
+          <div className="kpi-divider"></div>
+          <div className="kpi-detail">
+            <span className="kpi-dot" style={{ background: 'var(--brand)' }}></span>
+            <span className="kpi-sub">{kpis.diagnosticosUnicos} diagnosticos unicos</span>
+          </div>
         </div>
 
         <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Valor Total</span>
-            <div className="kpi-icon" style={{ background: 'rgba(34,197,94,0.08)', color: 'var(--success)' }}><HiCurrencyDollar /></div>
+          <div className="kpi-main">
+            <div className="kpi-icon" style={{ background: 'rgba(16,185,129,0.08)', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.2)' }}>
+              <HiCurrencyDollar size={20} />
+            </div>
+            <div className="kpi-info">
+              <span className="kpi-label">Valor Total</span>
+              <div className="kpi-value" style={{ fontSize: '1.25rem' }}>{formatShortCurrency(kpis.valorTotal)}</div>
+            </div>
           </div>
-          <div className="kpi-value" style={{ fontSize: '1.5rem' }}>{formatShortCurrency(kpis.valorTotal)}</div>
-          <div className="kpi-sub">COP facturados</div>
+          <div className="kpi-divider"></div>
+          <div className="kpi-detail">
+            <span className="kpi-dot" style={{ background: 'var(--success)' }}></span>
+            <span className="kpi-sub">COP facturados</span>
+          </div>
         </div>
 
         <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Pacientes</span>
-            <div className="kpi-icon" style={{ background: 'rgba(14,165,233,0.08)', color: 'var(--accent)' }}><HiUserGroup /></div>
+          <div className="kpi-main">
+            <div className="kpi-icon" style={{ background: 'rgba(59,130,246,0.08)', color: 'var(--accent)', borderColor: 'rgba(59,130,246,0.2)' }}>
+              <HiUserGroup size={20} />
+            </div>
+            <div className="kpi-info">
+              <span className="kpi-label">Pacientes</span>
+              <div className="kpi-value">{kpis.pacientesUnicos.toLocaleString()}</div>
+            </div>
           </div>
-          <div className="kpi-value">{kpis.pacientesUnicos.toLocaleString()}</div>
-          <div className="kpi-sub">Documentos unicos</div>
+          <div className="kpi-divider"></div>
+          <div className="kpi-detail">
+            <span className="kpi-dot" style={{ background: 'var(--accent)' }}></span>
+            <span className="kpi-sub">Documentos unicos</span>
+          </div>
         </div>
 
         <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Departamentos</span>
-            <div className="kpi-icon" style={{ background: 'rgba(245,158,11,0.08)', color: 'var(--warning)' }}><HiLocationMarker /></div>
+          <div className="kpi-main">
+            <div className="kpi-icon" style={{ background: 'rgba(245,158,11,0.08)', color: 'var(--warning)', borderColor: 'rgba(245,158,11,0.2)' }}>
+              <HiLocationMarker size={20} />
+            </div>
+            <div className="kpi-info">
+              <span className="kpi-label">Departamentos</span>
+              <div className="kpi-value">{kpis.departamentosUnicos}</div>
+            </div>
           </div>
-          <div className="kpi-value">{kpis.departamentosUnicos}</div>
-          <div className="kpi-sub">Regiones</div>
+          <div className="kpi-divider"></div>
+          <div className="kpi-detail">
+            <span className="kpi-dot" style={{ background: 'var(--warning)' }}></span>
+            <span className="kpi-sub">Regiones</span>
+          </div>
         </div>
 
         <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Estancia</span>
-            <div className="kpi-icon" style={{ background: 'rgba(99,102,241,0.08)', color: 'var(--info)' }}><HiCalendar /></div>
+          <div className="kpi-main">
+            <div className="kpi-icon" style={{ background: 'rgba(139,92,246,0.08)', color: 'var(--info)', borderColor: 'rgba(139,92,246,0.2)' }}>
+              <HiCalendar size={20} />
+            </div>
+            <div className="kpi-info">
+              <span className="kpi-label">Estancia</span>
+              <div className="kpi-value">{kpis.promedioEstancia.toFixed(1)}</div>
+            </div>
           </div>
-          <div className="kpi-value">{kpis.promedioEstancia.toFixed(1)}</div>
-          <div className="kpi-sub">Dias promedio</div>
+          <div className="kpi-divider"></div>
+          <div className="kpi-detail">
+            <span className="kpi-dot" style={{ background: 'var(--info)' }}></span>
+            <span className="kpi-sub">Dias promedio</span>
+          </div>
         </div>
 
         <div className="kpi-card">
-          <div className="kpi-top">
-            <span className="kpi-label">Costo / Pac.</span>
-            <div className="kpi-icon" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--danger)' }}><HiTrendingUp /></div>
+          <div className="kpi-main">
+            <div className="kpi-icon" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.2)' }}>
+              <HiTrendingUp size={20} />
+            </div>
+            <div className="kpi-info">
+              <span className="kpi-label">Costo / Pac.</span>
+              <div className="kpi-value" style={{ fontSize: '1.25rem' }}>
+                {kpis.pacientesUnicos > 0 ? formatShortCurrency(kpis.valorTotal / kpis.pacientesUnicos) : '$0'}
+              </div>
+            </div>
           </div>
-          <div className="kpi-value" style={{ fontSize: '1.5rem' }}>
-            {kpis.pacientesUnicos > 0 ? formatShortCurrency(kpis.valorTotal / kpis.pacientesUnicos) : '$0'}
+          <div className="kpi-divider"></div>
+          <div className="kpi-detail">
+            <span className="kpi-dot" style={{ background: 'var(--danger)' }}></span>
+            <span className="kpi-sub">Promedio</span>
           </div>
-          <div className="kpi-sub">Promedio</div>
         </div>
       </div>
 
@@ -375,7 +424,7 @@ export default function DashboardPage() {
       ) : (
         <div className="charts-section">
           {/* Row 1: Area chart full width */}
-          <div className="chart-card" style={{ animationDelay: '0.05s' }}>
+          <div className="chart-card" style={{ animationDelay: '0.1s' }}>
             <div className="chart-header">
               <div>
                 <div className="chart-title">Evolucion Financiera por Periodo</div>
@@ -387,18 +436,18 @@ export default function DashboardPage() {
               <AreaChart data={costoPeriodoChart}>
                 <defs>
                   <linearGradient id="gradValor" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0f766e" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="#0f766e" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#0d9488" stopOpacity={0.15} />
+                    <stop offset="100%" stopColor="#0d9488" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="gradRegistros" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0ea5e9" stopOpacity={0.15} />
-                    <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.1} />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="periodo" tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(v) => formatShortCurrency(v)} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="periodo" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => formatShortCurrency(v)} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <Tooltip
                   formatter={(value: number, name: string) => [
                     name === 'valor' ? formatCurrency(value) : value.toLocaleString(),
@@ -407,15 +456,15 @@ export default function DashboardPage() {
                   contentStyle={TOOLTIP_STYLE}
                 />
                 <Legend wrapperStyle={{ fontSize: 12, fontWeight: 500 }} />
-                <Area yAxisId="left" type="monotone" dataKey="valor" stroke="#0f766e" strokeWidth={2.5} fill="url(#gradValor)" name="Valor Total" dot={false} activeDot={{ r: 5, strokeWidth: 2, fill: '#fff', stroke: '#0f766e' }} />
-                <Area yAxisId="right" type="monotone" dataKey="registros" stroke="#0ea5e9" strokeWidth={2} fill="url(#gradRegistros)" name="Registros" dot={false} activeDot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: '#0ea5e9' }} />
+                <Area yAxisId="left" type="monotone" dataKey="valor" stroke="#0d9488" strokeWidth={2} fill="url(#gradValor)" name="Valor Total" dot={false} activeDot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: '#0d9488' }} />
+                <Area yAxisId="right" type="monotone" dataKey="registros" stroke="#3b82f6" strokeWidth={1.5} fill="url(#gradRegistros)" name="Registros" dot={false} activeDot={{ r: 3.5, strokeWidth: 2, fill: '#fff', stroke: '#3b82f6' }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
 
           {/* Row 2: Estado donut + Top Diagnostics */}
           <div className="charts-row">
-            <div className="chart-card" style={{ animationDelay: '0.1s' }}>
+            <div className="chart-card" style={{ animationDelay: '0.2s' }}>
               <div className="chart-header">
                 <div>
                   <div className="chart-title">Distribucion por Estado</div>
@@ -439,7 +488,7 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             </div>
 
-            <div className="chart-card" style={{ animationDelay: '0.15s' }}>
+            <div className="chart-card" style={{ animationDelay: '0.28s' }}>
               <div className="chart-header">
                 <div>
                   <div className="chart-title">Top 10 Diagnosticos</div>
@@ -462,7 +511,7 @@ export default function DashboardPage() {
 
           {/* Row 3: Department + Service Type */}
           <div className="charts-row">
-            <div className="chart-card" style={{ animationDelay: '0.2s' }}>
+            <div className="chart-card" style={{ animationDelay: '0.36s' }}>
               <div className="chart-header">
                 <div>
                   <div className="chart-title">Registros por Departamento</div>
@@ -473,8 +522,8 @@ export default function DashboardPage() {
                 <BarChart data={departamentoChart}>
                   <defs>
                     <linearGradient id="gradBar1" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#0f766e" stopOpacity={1} />
-                      <stop offset="100%" stopColor="#0f766e" stopOpacity={0.6} />
+                    <stop offset="0%" stopColor="#0d9488" stopOpacity={0.9} />
+                    <stop offset="100%" stopColor="#0d9488" stopOpacity={0.5} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -486,7 +535,7 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             </div>
 
-            <div className="chart-card" style={{ animationDelay: '0.25s' }}>
+            <div className="chart-card" style={{ animationDelay: '0.44s' }}>
               <div className="chart-header">
                 <div>
                   <div className="chart-title">Tipo de Servicio</div>
@@ -513,7 +562,7 @@ export default function DashboardPage() {
 
           {/* Row 4: Contract type + Days distribution */}
           <div className="charts-row">
-            <div className="chart-card" style={{ animationDelay: '0.3s' }}>
+            <div className="chart-card" style={{ animationDelay: '0.5s' }}>
               <div className="chart-header">
                 <div>
                   <div className="chart-title">Tipo de Contrato</div>
@@ -524,8 +573,8 @@ export default function DashboardPage() {
                 <BarChart data={contratoChart}>
                   <defs>
                     <linearGradient id="gradBar2" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#0ea5e9" stopOpacity={1} />
-                      <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0.6} />
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.85} />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.45} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -537,7 +586,7 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             </div>
 
-            <div className="chart-card" style={{ animationDelay: '0.35s' }}>
+            <div className="chart-card" style={{ animationDelay: '0.56s' }}>
               <div className="chart-header">
                 <div>
                   <div className="chart-title">Dias de Estancia</div>
@@ -559,7 +608,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Row 5: Top providers full width */}
-          <div className="chart-card" style={{ animationDelay: '0.4s' }}>
+          <div className="chart-card" style={{ animationDelay: '0.62s' }}>
             <div className="chart-header">
               <div>
                 <div className="chart-title">Top Prestadores por Valor Facturado</div>

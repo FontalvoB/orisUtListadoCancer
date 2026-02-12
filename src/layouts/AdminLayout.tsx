@@ -48,33 +48,33 @@ export default function AdminLayout() {
 
         <nav className="sidebar-nav" aria-label="Main navigation">
           <NavLink to="/admin" end onClick={() => setSidebarOpen(false)}>
-            <HiOutlineChartBar size={18} /> Dashboard
+            <HiOutlineChartBar size={16} /> Dashboard
           </NavLink>
           <NavLink to="/admin/cancer" onClick={() => setSidebarOpen(false)}>
-            <HiOutlineDocumentReport size={18} /> Registro Cancer
+            <HiOutlineDocumentReport size={16} /> Registro Cancer
           </NavLink>
 
           {isAdmin() && (
             <>
               <div className="sidebar-section-label">Administracion</div>
               <NavLink to="/admin/users" onClick={() => setSidebarOpen(false)}>
-                <HiOutlineUsers size={18} /> Usuarios
+                <HiOutlineUsers size={16} /> Usuarios
               </NavLink>
               <NavLink to="/admin/roles" onClick={() => setSidebarOpen(false)}>
-                <HiOutlineShieldCheck size={18} /> Roles
+                <HiOutlineShieldCheck size={16} /> Roles
               </NavLink>
             </>
           )}
 
           {hasPermission('activity.view') && (
             <NavLink to="/admin/activity" onClick={() => setSidebarOpen(false)}>
-              <HiOutlineClock size={18} /> Actividad
+              <HiOutlineClock size={16} /> Actividad
             </NavLink>
           )}
 
           <div className="sidebar-section-label">Cuenta</div>
           <NavLink to="/admin/profile" onClick={() => setSidebarOpen(false)}>
-            <HiOutlineUser size={18} /> Mi Perfil
+            <HiOutlineUser size={16} /> Mi Perfil
           </NavLink>
         </nav>
 
@@ -99,8 +99,8 @@ export default function AdminLayout() {
           {user?.profile?.roleName && (
             <div className="user-role-badge">{user.profile.roleName}</div>
           )}
-          <button onClick={handleLogout} className="btn-logout" style={{ marginTop: '0.75rem' }}>
-            <HiOutlineLogout size={16} />
+          <button onClick={handleLogout} className="btn-logout" style={{ marginTop: '0.5rem' }}>
+            <HiOutlineLogout size={14} />
             Cerrar sesion
           </button>
         </div>
