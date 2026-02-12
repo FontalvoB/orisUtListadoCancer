@@ -15,17 +15,29 @@ export default function AdminLayout() {
 
   return (
     <div className="admin-layout">
-      <button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
+      <button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle menu">
         {sidebarOpen ? <HiX size={24} /> : <HiMenu size={24} />}
       </button>
 
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <h2>Oris UT</h2>
-          <span className={`role-badge role-${user?.profile?.roleName ?? 'user'}`}>{user?.profile?.roleName ?? 'sin rol'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: 'linear-gradient(135deg, #0e7490, #059669)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', fontWeight: 800, fontSize: '0.8rem',
+            }}>
+              {'OU'}
+            </div>
+            <h2>Oris UT</h2>
+          </div>
+          <span className={`role-badge role-${user?.profile?.roleName ?? 'user'}`}>
+            {user?.profile?.roleName ?? 'sin rol'}
+          </span>
         </div>
 
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" aria-label="Main navigation">
           <NavLink to="/admin" end onClick={() => setSidebarOpen(false)}>
             <HiViewGrid /> Dashboard
           </NavLink>
@@ -43,12 +55,12 @@ export default function AdminLayout() {
 
           {hasPermission('activity.view') && (
             <NavLink to="/admin/activity" onClick={() => setSidebarOpen(false)}>
-              <HiClipboardList /> Activity Log
+              <HiClipboardList /> Actividad
             </NavLink>
           )}
 
           <NavLink to="/admin/cancer" onClick={() => setSidebarOpen(false)}>
-            <HiDocumentReport /> Registro Cáncer
+            <HiDocumentReport /> Registro Cancer
           </NavLink>
 
           <NavLink to="/admin/profile" onClick={() => setSidebarOpen(false)}>
@@ -59,13 +71,18 @@ export default function AdminLayout() {
         <div className="sidebar-footer">
           <div className="user-info">
             {user?.photoURL && <img src={user.photoURL} alt="" className="avatar-small" />}
+            {!user?.photoURL && (
+              <div className="avatar-small avatar-placeholder" style={{ fontSize: '0.75rem' }}>
+                {(user?.displayName ?? user?.email ?? '?')[0].toUpperCase()}
+              </div>
+            )}
             <div>
               <p className="user-name">{user?.displayName ?? user?.email}</p>
               <p className="user-email">{user?.email}</p>
             </div>
           </div>
           <button onClick={handleLogout} className="btn btn-logout">
-            <HiLogout /> Salir
+            <HiLogout /> Cerrar sesion
           </button>
         </div>
       </aside>

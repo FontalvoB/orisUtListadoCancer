@@ -243,6 +243,12 @@ export const getDistinctValues = async (field: string): Promise<string[]> => {
   return Array.from(values).sort();
 };
 
+// ==================== GET ALL RECORDS (for analytics) ====================
+export const getAllCancerRecords = async (): Promise<CancerRecord[]> => {
+  const snap = await getDocs(collection(db, COLLECTION));
+  return snap.docs.map(docToRecord);
+};
+
 // ==================== DELETE ALL (for reimport) ====================
 export const deleteAllCancerRecords = async (
   onProgress?: (deleted: number) => void
