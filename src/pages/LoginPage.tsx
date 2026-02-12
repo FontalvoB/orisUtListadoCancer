@@ -86,18 +86,27 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
+      {/* Decorative grid pattern */}
+      <div style={{
+        position: 'absolute', inset: 0, zIndex: 0,
+        backgroundImage: 'radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px)',
+        backgroundSize: '32px 32px',
+      }} />
+
       <div className="login-card">
         <div className="login-header">
           <div style={{
-            width: 48, height: 48, borderRadius: 12, margin: '0 auto 1rem',
-            background: 'linear-gradient(135deg, #0e7490, #059669)',
+            width: 52, height: 52, borderRadius: 14, margin: '0 auto 1.25rem',
+            background: 'linear-gradient(135deg, #0284c7, #0d9488)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: 800, fontSize: '1rem',
+            color: '#fff', fontWeight: 800, fontSize: '1.0625rem',
+            letterSpacing: '-0.02em',
+            boxShadow: '0 4px 16px rgba(2, 132, 199, 0.25)',
           }}>
-            {'OU'}
+            OU
           </div>
           <h1>Oris UT</h1>
-          <p>{isRegister ? 'Crear cuenta' : 'Plataforma de Registro Oncologico'}</p>
+          <p>{isRegister ? 'Crear una nueva cuenta' : 'Plataforma de Registro Oncologico'}</p>
         </div>
 
         {error && <div className="alert alert-error">{error}</div>}
@@ -145,24 +154,29 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="------"
+              placeholder="Min. 6 caracteres"
               required
               minLength={6}
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%', marginTop: '0.25rem' }}>
-            {loading ? 'Cargando...' : isRegister ? 'Registrarse' : 'Iniciar sesion'}
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={loading}
+            style={{ width: '100%', marginTop: '0.5rem', padding: '0.75rem' }}
+          >
+            {loading ? 'Procesando...' : isRegister ? 'Crear cuenta' : 'Iniciar sesion'}
           </button>
         </form>
 
         <div className="divider">
-          <span>o</span>
+          <span>o continua con</span>
         </div>
 
         <button onClick={handleGoogleLogin} className="btn btn-google" disabled={loading}>
           <FcGoogle size={20} />
-          Continuar con Google
+          Google
         </button>
 
         <p className="toggle-auth">

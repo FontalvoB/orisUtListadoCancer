@@ -16,24 +16,34 @@ export default function AdminLayout() {
   return (
     <div className="admin-layout">
       <button className="mobile-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle menu">
-        {sidebarOpen ? <HiX size={24} /> : <HiMenu size={24} />}
+        {sidebarOpen ? <HiX size={22} /> : <HiMenu size={22} />}
       </button>
 
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flex: 1 }}>
             <div style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: 'linear-gradient(135deg, #0e7490, #059669)',
+              width: 34, height: 34, borderRadius: 10,
+              background: 'linear-gradient(135deg, #0284c7, #0d9488)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fff', fontWeight: 800, fontSize: '0.8rem',
+              color: '#fff', fontWeight: 800, fontSize: '0.75rem',
+              letterSpacing: '-0.02em',
+              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
             }}>
-              {'OU'}
+              OU
             </div>
-            <h2>Oris UT</h2>
+            <div>
+              <h2 style={{ margin: 0, lineHeight: 1.2 }}>Oris UT</h2>
+              <span style={{ fontSize: '0.6875rem', color: 'rgba(255,255,255,0.35)', fontWeight: 400, letterSpacing: '0.02em' }}>
+                Registro Oncologico
+              </span>
+            </div>
           </div>
-          <span className={`role-badge role-${user?.profile?.roleName ?? 'user'}`}>
-            {user?.profile?.roleName ?? 'sin rol'}
+        </div>
+
+        <div style={{ padding: '0.75rem 1rem 0.25rem' }}>
+          <span style={{ fontSize: '0.625rem', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em', color: 'rgba(255,255,255,0.25)' }}>
+            Menu principal
           </span>
         </div>
 
@@ -76,10 +86,17 @@ export default function AdminLayout() {
                 {(user?.displayName ?? user?.email ?? '?')[0].toUpperCase()}
               </div>
             )}
-            <div>
-              <p className="user-name">{user?.displayName ?? user?.email}</p>
-              <p className="user-email">{user?.email}</p>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p className="user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user?.displayName ?? user?.email}
+              </p>
+              <p className="user-email" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user?.email}
+              </p>
             </div>
+            <span className={`role-badge role-${user?.profile?.roleName ?? 'user'}`} style={{ flexShrink: 0 }}>
+              {user?.profile?.roleName ?? 'sin rol'}
+            </span>
           </div>
           <button onClick={handleLogout} className="btn btn-logout">
             <HiLogout /> Cerrar sesion
