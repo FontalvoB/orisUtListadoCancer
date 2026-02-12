@@ -175,14 +175,14 @@ export const MODULE_LABELS: Record<ActivityModule, string> = {
 };
 
 export const ACTION_COLORS: Record<ActivityAction, string> = {
-  login: '#22c55e',
-  login_google: '#22c55e',
-  logout: '#94a3b8',
-  register: '#6366f1',
-  create: '#3b82f6',
-  update: '#f59e0b',
-  delete: '#ef4444',
-  import: '#8b5cf6',
-  export: '#06b6d4',
+  login: '#059669',
+  login_google: '#059669',
+  logout: '#64748b',
+  register: '#0e7490',
+  create: '#2563eb',
+  update: '#d97706',
+  delete: '#dc2626',
+  import: '#7c3aed',
+  export: '#0891b2',
   view: '#64748b',
 };

@@ -18,7 +18,6 @@ export default function LoginPage() {
   const handleAfterAuth = async (uid: string, email: string, displayName: string, photoURL: string) => {
     const profile = await getUserProfile(uid);
     if (!profile) {
-      // Auto-assign 'user' role for self-registrations
       await createUserWithRole(uid, email, displayName, photoURL, 'user');
     }
     navigate('/admin');
@@ -34,8 +33,6 @@ export default function LoginPage() {
         await handleAfterAuth(fbUser.uid, email, displayName, '');
       } else {
         await login(email, password);
-        // onAuthStateChanged will handle profile loading
-        // but we need to check if profile exists
         const { currentUser } = await import('../config/firebase').then(m => m.auth);
         if (currentUser) {
           await handleAfterAuth(
@@ -49,13 +46,13 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
       if (message.includes('auth/invalid-credential') || message.includes('auth/wrong-password')) {
-        setError('Credenciales inválidas');
+        setError('Credenciales invalidas');
       } else if (message.includes('auth/user-not-found')) {
         setError('Usuario no encontrado');
       } else if (message.includes('auth/email-already-in-use')) {
-        setError('El correo ya está registrado');
+        setError('El correo ya esta registrado');
       } else if (message.includes('auth/weak-password')) {
-        setError('La contraseña debe tener al menos 6 caracteres');
+        setError('La contrasena debe tener al menos 6 caracteres');
       } else {
         setError(message);
       }
@@ -78,7 +75,7 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
       if (message.includes('auth/popup-closed-by-user')) {
-        setError('Inicio de sesión cancelado');
+        setError('Inicio de sesion cancelado');
       } else {
         setError(message);
       }
@@ -91,8 +88,16 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-header">
+          <div style={{
+            width: 48, height: 48, borderRadius: 12, margin: '0 auto 1rem',
+            background: 'linear-gradient(135deg, #0e7490, #059669)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontWeight: 800, fontSize: '1rem',
+          }}>
+            {'OU'}
+          </div>
           <h1>Oris UT</h1>
-          <p>{isRegister ? 'Crear cuenta' : 'Iniciar sesión'}</p>
+          <p>{isRegister ? 'Crear cuenta' : 'Plataforma de Registro Oncologico'}</p>
         </div>
 
         {error && <div className="alert alert-error">{error}</div>}
@@ -118,7 +123,7 @@ export default function LoginPage() {
           <div className="form-group">
             <label htmlFor="email">
               <HiMail />
-              Correo electrónico
+              Correo electronico
             </label>
             <input
               id="email"
@@ -133,21 +138,21 @@ export default function LoginPage() {
           <div className="form-group">
             <label htmlFor="password">
               <HiLockClosed />
-              Contraseña
+              Contrasena
             </label>
             <input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••"
+              placeholder="------"
               required
               minLength={6}
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Cargando...' : isRegister ? 'Registrarse' : 'Iniciar sesión'}
+          <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%', marginTop: '0.25rem' }}>
+            {loading ? 'Cargando...' : isRegister ? 'Registrarse' : 'Iniciar sesion'}
           </button>
         </form>
 
@@ -161,13 +166,13 @@ export default function LoginPage() {
         </button>
 
         <p className="toggle-auth">
-          {isRegister ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}{' '}
+          {isRegister ? 'Ya tienes cuenta?' : 'No tienes cuenta?'}{' '}
           <button
             type="button"
             className="link-btn"
             onClick={() => { setIsRegister(!isRegister); setError(''); }}
           >
-            {isRegister ? 'Iniciar sesión' : 'Registrarse'}
+            {isRegister ? 'Iniciar sesion' : 'Registrarse'}
           </button>
         </p>
       </div>
