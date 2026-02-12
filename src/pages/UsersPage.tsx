@@ -152,7 +152,7 @@ export default function UsersPage() {
     }
   };
 
-  if (loading) return <div className="page"><div className="spinner" /><p>Cargando usuarios...</p></div>;
+  if (loading) return <div className="page"><div className="loading-inline"><div className="spinner" /><p>Cargando usuarios...</p></div></div>;
 
   return (
     <div className="page">
