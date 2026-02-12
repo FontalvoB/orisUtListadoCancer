@@ -86,109 +86,99 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      {/* Decorative grid pattern */}
-      <div style={{
-        position: 'absolute', inset: 0, zIndex: 0,
-        backgroundImage: 'radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px)',
-        backgroundSize: '32px 32px',
-      }} />
-
-      <div className="login-card">
-        <div className="login-header">
-          <div style={{
-            width: 52, height: 52, borderRadius: 14, margin: '0 auto 1.25rem',
-            background: 'linear-gradient(135deg, #0284c7, #0d9488)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: 800, fontSize: '1.0625rem',
-            letterSpacing: '-0.02em',
-            boxShadow: '0 4px 16px rgba(2, 132, 199, 0.25)',
-          }}>
-            OU
+      <div className="login-left">
+        <div className="login-card">
+          <div className="login-logo">
+            <div className="login-logo-icon">OU</div>
+            <div className="login-logo-text">
+              <h1>Oris UT</h1>
+              <p>Plataforma Oncologica</p>
+            </div>
           </div>
-          <h1>Oris UT</h1>
-          <p>{isRegister ? 'Crear una nueva cuenta' : 'Plataforma de Registro Oncologico'}</p>
-        </div>
 
-        {error && <div className="alert alert-error">{error}</div>}
+          {error && <div className="alert alert-error">{error}</div>}
 
-        <form onSubmit={handleEmailLogin} className="login-form">
-          {isRegister && (
+          <form onSubmit={handleEmailLogin} className="login-form">
+            {isRegister && (
+              <div className="form-group">
+                <label htmlFor="displayName"><HiUser size={14} /> Nombre completo</label>
+                <input
+                  id="displayName"
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Tu nombre"
+                  required={isRegister}
+                />
+              </div>
+            )}
+
             <div className="form-group">
-              <label htmlFor="displayName">
-                <HiUser />
-                Nombre completo
-              </label>
+              <label htmlFor="email"><HiMail size={14} /> Correo electronico</label>
               <input
-                id="displayName"
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Tu nombre"
-                required={isRegister}
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="nombre@empresa.com"
+                required
               />
             </div>
-          )}
 
-          <div className="form-group">
-            <label htmlFor="email">
-              <HiMail />
-              Correo electronico
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="correo@ejemplo.com"
-              required
-            />
-          </div>
+            <div className="form-group">
+              <label htmlFor="password"><HiLockClosed size={14} /> Contrasena</label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Min. 6 caracteres"
+                required
+                minLength={6}
+              />
+            </div>
 
-          <div className="form-group">
-            <label htmlFor="password">
-              <HiLockClosed />
-              Contrasena
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Min. 6 caracteres"
-              required
-              minLength={6}
-            />
-          </div>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading}
+              style={{ width: '100%', marginTop: '0.25rem', padding: '0.75rem' }}
+            >
+              {loading ? 'Procesando...' : isRegister ? 'Crear cuenta' : 'Iniciar sesion'}
+            </button>
+          </form>
 
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={loading}
-            style={{ width: '100%', marginTop: '0.5rem', padding: '0.75rem' }}
-          >
-            {loading ? 'Procesando...' : isRegister ? 'Crear cuenta' : 'Iniciar sesion'}
+          <div className="divider">o continua con</div>
+
+          <button onClick={handleGoogleLogin} className="btn btn-google" disabled={loading}>
+            <FcGoogle size={20} />
+            Google
           </button>
-        </form>
 
-        <div className="divider">
-          <span>o continua con</span>
+          <p className="toggle-auth">
+            {isRegister ? 'Ya tienes cuenta?' : 'No tienes cuenta?'}{' '}
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => { setIsRegister(!isRegister); setError(''); }}
+            >
+              {isRegister ? 'Iniciar sesion' : 'Registrarse'}
+            </button>
+          </p>
         </div>
+      </div>
 
-        <button onClick={handleGoogleLogin} className="btn btn-google" disabled={loading}>
-          <FcGoogle size={20} />
-          Google
-        </button>
-
-        <p className="toggle-auth">
-          {isRegister ? 'Ya tienes cuenta?' : 'No tienes cuenta?'}{' '}
-          <button
-            type="button"
-            className="link-btn"
-            onClick={() => { setIsRegister(!isRegister); setError(''); }}
-          >
-            {isRegister ? 'Iniciar sesion' : 'Registrarse'}
-          </button>
-        </p>
+      <div className="login-right">
+        <div className="login-right-content">
+          <h2>Analisis inteligente de datos oncologicos</h2>
+          <p>
+            Visualiza, gestiona y analiza registros de cancer con herramientas
+            de datos en tiempo real para la toma de decisiones clinicas.
+          </p>
+          <div className="login-decoration">
+            <span /><span /><span />
+          </div>
+        </div>
       </div>
     </div>
   );
