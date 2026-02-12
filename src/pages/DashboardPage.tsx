@@ -4,14 +4,23 @@ import { getAllCancerRecords, getDistinctValues } from '../services/cancerServic
 import type { CancerRecord } from '../types';
 import {
   HiDocumentReport, HiLocationMarker, HiCurrencyDollar, HiUserGroup,
-  HiFilter, HiX, HiRefresh,
+  HiFilter, HiX, HiRefresh, HiTrendingUp, HiCalendar,
 } from 'react-icons/hi';
 import {
-  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
+  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 
-const CHART_COLORS = ['#0e7490', '#059669', '#d97706', '#dc2626', '#2563eb', '#7c3aed', '#0891b2', '#65a30d', '#ea580c', '#9333ea'];
+const CHART_COLORS = ['#0284c7', '#0d9488', '#f59e0b', '#e11d48', '#8b5cf6', '#06b6d4', '#84cc16', '#ec4899', '#f97316', '#6366f1'];
+
+const TOOLTIP_STYLE = {
+  borderRadius: 10,
+  border: '1px solid #e2e8f0',
+  fontSize: 12,
+  boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+  padding: '8px 12px',
+  background: '#ffffff',
+};
 
 interface DashboardFilters {
   epcDepartamento: string;
@@ -76,7 +85,6 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Apply filters
   const filteredRecords = useMemo(() => {
     return allRecords.filter(r => {
       if (filters.epcDepartamento && r.epcDepartamento !== filters.epcDepartamento) return false;
@@ -102,7 +110,7 @@ export default function DashboardPage() {
     return { totalRegistros, valorTotal, departamentosUnicos, diagnosticosUnicos, pacientesUnicos, promedioEstancia };
   }, [filteredRecords]);
 
-  // Chart: Top diagnostics by count
+  // Chart: Top diagnostics
   const diagnosticosChart = useMemo(() => {
     const counts: Record<string, number> = {};
     filteredRecords.forEach(r => {
@@ -124,8 +132,8 @@ export default function DashboardPage() {
     });
     return Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([name, value]) => ({ name, value }));
+      .slice(0, 8)
+      .map(([name, value]) => ({ name: name.length > 18 ? name.substring(0, 18) + '...' : name, value }));
   }, [filteredRecords]);
 
   // Chart: By service type
@@ -152,7 +160,7 @@ export default function DashboardPage() {
       .map(([name, value]) => ({ name, value }));
   }, [filteredRecords]);
 
-  // Chart: Cost by period (line)
+  // Chart: Cost over time (area)
   const costoPeriodoChart = useMemo(() => {
     const map: Record<string, { periodo: string; valor: number; registros: number }> = {};
     filteredRecords.forEach(r => {
@@ -176,7 +184,7 @@ export default function DashboardPage() {
       .map(([name, value]) => ({ name, value }));
   }, [filteredRecords]);
 
-  // Top prestadores by value
+  // Chart: Top prestadores
   const prestadoresChart = useMemo(() => {
     const map: Record<string, number> = {};
     filteredRecords.forEach(r => {
@@ -186,7 +194,22 @@ export default function DashboardPage() {
     return Object.entries(map)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
-      .map(([name, value]) => ({ name: name.length > 25 ? name.substring(0, 25) + '...' : name, value }));
+      .map(([name, value]) => ({ name: name.length > 22 ? name.substring(0, 22) + '...' : name, value }));
+  }, [filteredRecords]);
+
+  // Chart: Days distribution
+  const diasEstanciaChart = useMemo(() => {
+    const buckets: Record<string, number> = { '0': 0, '1-3': 0, '4-7': 0, '8-14': 0, '15-30': 0, '30+': 0 };
+    filteredRecords.forEach(r => {
+      const d = r.diasEstancia || 0;
+      if (d === 0) buckets['0']++;
+      else if (d <= 3) buckets['1-3']++;
+      else if (d <= 7) buckets['4-7']++;
+      else if (d <= 14) buckets['8-14']++;
+      else if (d <= 30) buckets['15-30']++;
+      else buckets['30+']++;
+    });
+    return Object.entries(buckets).map(([name, value]) => ({ name: name + ' dias', value }));
   }, [filteredRecords]);
 
   const formatCurrency = (val: number) =>
@@ -200,9 +223,7 @@ export default function DashboardPage() {
   };
 
   const activeFilterCount = Object.values(filters).filter(v => v).length;
-
   const clearFilters = () => setFilters(emptyFilters);
-
   const updateFilter = (key: keyof DashboardFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
@@ -212,7 +233,7 @@ export default function DashboardPage() {
       <div className="page">
         <div className="loading-inline">
           <div className="spinner" />
-          <p>Cargando datos del dashboard...</p>
+          <p style={{ fontWeight: 500 }}>Cargando datos del dashboard...</p>
         </div>
       </div>
     );
@@ -229,11 +250,12 @@ export default function DashboardPage() {
 
   return (
     <div className="page">
+      {/* Header */}
       <div className="page-header">
         <div>
           <h1>Dashboard Oncologico</h1>
-          <p className="welcome-text" style={{ marginBottom: 0 }}>
-            Bienvenido, <strong>{user?.displayName ?? user?.email}</strong>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem', marginTop: '0.25rem' }}>
+            Bienvenido, <strong style={{ color: 'var(--text-secondary)' }}>{user?.displayName ?? user?.email}</strong>
           </p>
         </div>
         <div className="header-actions">
@@ -289,7 +311,7 @@ export default function DashboardPage() {
         </div>
         {activeFilterCount > 0 && (
           <div className="filter-actions-row">
-            <button onClick={clearFilters} className="btn btn-outline" style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem' }}>
+            <button onClick={clearFilters} className="btn btn-outline" style={{ padding: '0.5rem 0.875rem', fontSize: '0.8125rem' }}>
               <HiX /> Limpiar ({activeFilterCount})
             </button>
           </div>
@@ -298,7 +320,7 @@ export default function DashboardPage() {
 
       {/* Active filter tags */}
       {activeFilterCount > 0 && (
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
           {filters.epcDepartamento && (
             <span className="filter-tag">Depto: {filters.epcDepartamento} <button onClick={() => updateFilter('epcDepartamento', '')}><HiX /></button></span>
           )}
@@ -320,17 +342,17 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div className="kpi-grid">
+      {/* KPI Cards - 6 cards in a row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.875rem', marginBottom: '1.5rem' }}>
         <div className="kpi-card">
           <div className="kpi-card-header">
-            <span className="kpi-card-label">Total Registros</span>
+            <span className="kpi-card-label">Registros</span>
             <div className="kpi-card-icon" style={{ background: 'var(--primary-light)', color: 'var(--primary)' }}>
               <HiDocumentReport />
             </div>
           </div>
           <div className="kpi-card-value">{kpis.totalRegistros.toLocaleString()}</div>
-          <div className="kpi-card-subtitle">{kpis.diagnosticosUnicos} diagnosticos unicos</div>
+          <div className="kpi-card-subtitle">{kpis.diagnosticosUnicos} diagnosticos</div>
         </div>
 
         <div className="kpi-card">
@@ -340,8 +362,8 @@ export default function DashboardPage() {
               <HiCurrencyDollar />
             </div>
           </div>
-          <div className="kpi-card-value">{formatShortCurrency(kpis.valorTotal)}</div>
-          <div className="kpi-card-subtitle">{formatCurrency(kpis.valorTotal)}</div>
+          <div className="kpi-card-value" style={{ fontSize: '1.5rem' }}>{formatShortCurrency(kpis.valorTotal)}</div>
+          <div className="kpi-card-subtitle">COP facturados</div>
         </div>
 
         <div className="kpi-card">
@@ -352,81 +374,123 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="kpi-card-value">{kpis.pacientesUnicos.toLocaleString()}</div>
-          <div className="kpi-card-subtitle">Documentos unicos</div>
+          <div className="kpi-card-subtitle">Docs. unicos</div>
         </div>
 
         <div className="kpi-card">
           <div className="kpi-card-header">
-            <span className="kpi-card-label">Departamentos</span>
+            <span className="kpi-card-label">Deptos.</span>
             <div className="kpi-card-icon" style={{ background: 'var(--warning-light)', color: 'var(--warning)' }}>
               <HiLocationMarker />
             </div>
           </div>
           <div className="kpi-card-value">{kpis.departamentosUnicos}</div>
-          <div className="kpi-card-subtitle">Prom. estancia: {kpis.promedioEstancia.toFixed(1)} dias</div>
+          <div className="kpi-card-subtitle">Regiones</div>
+        </div>
+
+        <div className="kpi-card">
+          <div className="kpi-card-header">
+            <span className="kpi-card-label">Estancia</span>
+            <div className="kpi-card-icon" style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}>
+              <HiCalendar />
+            </div>
+          </div>
+          <div className="kpi-card-value">{kpis.promedioEstancia.toFixed(1)}</div>
+          <div className="kpi-card-subtitle">Dias promedio</div>
+        </div>
+
+        <div className="kpi-card">
+          <div className="kpi-card-header">
+            <span className="kpi-card-label">Costo/Pac.</span>
+            <div className="kpi-card-icon" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
+              <HiTrendingUp />
+            </div>
+          </div>
+          <div className="kpi-card-value" style={{ fontSize: '1.5rem' }}>
+            {kpis.pacientesUnicos > 0 ? formatShortCurrency(kpis.valorTotal / kpis.pacientesUnicos) : '$0'}
+          </div>
+          <div className="kpi-card-subtitle">Promedio</div>
         </div>
       </div>
 
       {filteredRecords.length === 0 ? (
-        <div className="chart-card" style={{ textAlign: 'center', padding: '3rem' }}>
-          <HiDocumentReport size={48} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
-          <h3 style={{ color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Sin datos para mostrar</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+        <div className="chart-card" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+          <HiDocumentReport size={48} style={{ color: 'var(--text-muted)', marginBottom: '1rem', opacity: 0.4 }} />
+          <h3 style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 700, fontSize: '1.125rem' }}>Sin datos para mostrar</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem', maxWidth: 400, margin: '0 auto' }}>
             {allRecords.length === 0
               ? 'No hay registros en la base de datos. Importa datos desde la seccion de Registro Cancer.'
-              : 'Los filtros seleccionados no coinciden con ningun registro. Intenta ajustar los filtros.'}
+              : 'Los filtros seleccionados no coinciden con ningun registro. Ajusta los filtros para visualizar datos.'}
           </p>
         </div>
       ) : (
         <>
-          {/* Row 1: Line chart + Pie */}
-          <div className="charts-grid">
+          {/* Row 1: Area chart full width */}
+          <div className="charts-grid" style={{ gridTemplateColumns: '1fr' }}>
             <div className="chart-card">
               <div className="chart-card-header">
                 <div>
-                  <div className="chart-card-title">Costo por Periodo</div>
-                  <div className="chart-card-subtitle">Valor total y cantidad de registros por periodo</div>
+                  <div className="chart-card-title">Evolucion Financiera por Periodo</div>
+                  <div className="chart-card-subtitle">Valor facturado y volumen de registros a lo largo del tiempo</div>
                 </div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary)', background: 'var(--primary-light)', padding: '0.25rem 0.625rem', borderRadius: 100 }}>
+                  {costoPeriodoChart.length} periodos
+                </span>
               </div>
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={costoPeriodoChart}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="periodo" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => formatShortCurrency(v)} />
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={costoPeriodoChart}>
+                  <defs>
+                    <linearGradient id="gradValor" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0284c7" stopOpacity={0.2} />
+                      <stop offset="100%" stopColor="#0284c7" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradRegistros" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0d9488" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="#0d9488" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="periodo" tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(v) => formatShortCurrency(v)} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <Tooltip
                     formatter={(value: number, name: string) => [
                       name === 'valor' ? formatCurrency(value) : value.toLocaleString(),
                       name === 'valor' ? 'Valor Total' : 'Registros'
                     ]}
-                    contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
+                    contentStyle={TOOLTIP_STYLE}
                   />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line type="monotone" dataKey="valor" stroke="#0e7490" strokeWidth={2} name="Valor Total" dot={{ r: 4 }} />
-                  <Line type="monotone" dataKey="registros" stroke="#059669" strokeWidth={2} name="Registros" dot={{ r: 4 }} />
-                </LineChart>
+                  <Legend wrapperStyle={{ fontSize: 12, fontWeight: 500 }} />
+                  <Area yAxisId="left" type="monotone" dataKey="valor" stroke="#0284c7" strokeWidth={2.5} fill="url(#gradValor)" name="Valor Total" dot={false} activeDot={{ r: 5, strokeWidth: 2, fill: '#fff', stroke: '#0284c7' }} />
+                  <Area yAxisId="right" type="monotone" dataKey="registros" stroke="#0d9488" strokeWidth={2} fill="url(#gradRegistros)" name="Registros" dot={false} activeDot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: '#0d9488' }} />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
+          </div>
 
+          {/* Row 2: Estado (donut) + Top Diagnostics */}
+          <div className="charts-grid">
             <div className="chart-card">
               <div className="chart-card-header">
                 <div>
                   <div className="chart-card-title">Distribucion por Estado</div>
-                  <div className="chart-card-subtitle">Registros segun estado de la factura</div>
+                  <div className="chart-card-subtitle">Estado actual de las facturas</div>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={280}>
+              <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
                     data={estadoChart}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={3}
+                    innerRadius={70}
+                    outerRadius={110}
+                    paddingAngle={4}
                     dataKey="value"
+                    cornerRadius={4}
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    labelLine={false}
-                    style={{ fontSize: 11 }}
+                    labelLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
+                    style={{ fontSize: 11, fontWeight: 500, fill: '#64748b' }}
                   >
                     {estadoChart.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -434,32 +498,29 @@ export default function DashboardPage() {
                   </Pie>
                   <Tooltip
                     formatter={(value: number) => [value.toLocaleString(), 'Registros']}
-                    contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
+                    contentStyle={TOOLTIP_STYLE}
                   />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-          </div>
 
-          {/* Row 2: Top Diagnostics */}
-          <div className="charts-grid">
-            <div className="chart-card chart-card-full">
+            <div className="chart-card">
               <div className="chart-card-header">
                 <div>
-                  <div className="chart-card-title">Top 10 Diagnosticos por Frecuencia</div>
-                  <div className="chart-card-subtitle">Codigos CIE-10 mas frecuentes en los registros</div>
+                  <div className="chart-card-title">Top 10 Diagnosticos</div>
+                  <div className="chart-card-subtitle">Codigos CIE-10 mas frecuentes</div>
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={diagnosticosChart} layout="vertical" margin={{ left: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis dataKey="name" type="category" width={60} tick={{ fontSize: 11, fill: '#64748b' }} />
+                <BarChart data={diagnosticosChart} layout="vertical" margin={{ left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <YAxis dataKey="name" type="category" width={55} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
                   <Tooltip
                     formatter={(value: number) => [value.toLocaleString(), 'Registros']}
-                    contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
+                    contentStyle={TOOLTIP_STYLE}
                   />
-                  <Bar dataKey="value" name="Registros" radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="value" name="Registros" radius={[0, 6, 6, 0]} barSize={20}>
                     {diagnosticosChart.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                     ))}
@@ -475,19 +536,25 @@ export default function DashboardPage() {
               <div className="chart-card-header">
                 <div>
                   <div className="chart-card-title">Registros por Departamento</div>
-                  <div className="chart-card-subtitle">Top 10 departamentos con mas registros</div>
+                  <div className="chart-card-subtitle">Top departamentos con mayor volumen</div>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={280}>
+              <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={departamentoChart}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} angle={-35} textAnchor="end" height={60} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <defs>
+                    <linearGradient id="gradBar1" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0284c7" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#0284c7" stopOpacity={0.6} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 500 }} angle={-30} textAnchor="end" height={65} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <Tooltip
                     formatter={(value: number) => [value.toLocaleString(), 'Registros']}
-                    contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
+                    contentStyle={TOOLTIP_STYLE}
                   />
-                  <Bar dataKey="value" name="Registros" fill="#0e7490" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="value" name="Registros" fill="url(#gradBar1)" radius={[6, 6, 0, 0]} barSize={32} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -495,22 +562,23 @@ export default function DashboardPage() {
             <div className="chart-card">
               <div className="chart-card-header">
                 <div>
-                  <div className="chart-card-title">Distribucion por Tipo de Servicio</div>
-                  <div className="chart-card-subtitle">Hospitalizacion, ambulatorio, urgencias, etc.</div>
+                  <div className="chart-card-title">Tipo de Servicio</div>
+                  <div className="chart-card-subtitle">Hospitalizacion, ambulatorio, urgencias</div>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={280}>
+              <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
                     data={servicioChart}
                     cx="50%"
                     cy="50%"
-                    outerRadius={100}
-                    paddingAngle={2}
+                    outerRadius={110}
+                    paddingAngle={3}
                     dataKey="value"
-                    label={({ name, percent }) => `${name.length > 15 ? name.substring(0, 15) + '...' : name} ${(percent * 100).toFixed(0)}%`}
-                    labelLine={false}
-                    style={{ fontSize: 10 }}
+                    cornerRadius={4}
+                    label={({ name, percent }) => `${name.length > 12 ? name.substring(0, 12) + '..' : name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
+                    style={{ fontSize: 10, fontWeight: 500, fill: '#64748b' }}
                   >
                     {servicioChart.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -518,32 +586,38 @@ export default function DashboardPage() {
                   </Pie>
                   <Tooltip
                     formatter={(value: number) => [value.toLocaleString(), 'Registros']}
-                    contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
+                    contentStyle={TOOLTIP_STYLE}
                   />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Row 4: Contract type + Top providers */}
+          {/* Row 4: Contract type + Days distribution */}
           <div className="charts-grid">
             <div className="chart-card">
               <div className="chart-card-header">
                 <div>
                   <div className="chart-card-title">Tipo de Contrato</div>
-                  <div className="chart-card-subtitle">Distribucion de registros por tipo de contrato</div>
+                  <div className="chart-card-subtitle">Distribucion por modalidad contractual</div>
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={contratoChart}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <defs>
+                    <linearGradient id="gradBar2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0d9488" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#0d9488" stopOpacity={0.6} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <Tooltip
                     formatter={(value: number) => [value.toLocaleString(), 'Registros']}
-                    contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
+                    contentStyle={TOOLTIP_STYLE}
                   />
-                  <Bar dataKey="value" name="Registros" fill="#059669" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="value" name="Registros" fill="url(#gradBar2)" radius={[6, 6, 0, 0]} barSize={40} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -551,20 +625,52 @@ export default function DashboardPage() {
             <div className="chart-card">
               <div className="chart-card-header">
                 <div>
-                  <div className="chart-card-title">Top Prestadores por Valor</div>
-                  <div className="chart-card-subtitle">Prestadores con mayor valor facturado</div>
+                  <div className="chart-card-title">Dias de Estancia</div>
+                  <div className="chart-card-subtitle">Distribucion por rango de dias</div>
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={prestadoresChart} layout="vertical" margin={{ left: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => formatShortCurrency(v)} />
-                  <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 10, fill: '#64748b' }} />
+                <BarChart data={diasEstanciaChart}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    formatter={(value: number) => [value.toLocaleString(), 'Registros']}
+                    contentStyle={TOOLTIP_STYLE}
+                  />
+                  <Bar dataKey="value" name="Registros" radius={[6, 6, 0, 0]} barSize={36}>
+                    {diasEstanciaChart.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Row 5: Top providers full width */}
+          <div className="charts-grid" style={{ gridTemplateColumns: '1fr' }}>
+            <div className="chart-card">
+              <div className="chart-card-header">
+                <div>
+                  <div className="chart-card-title">Top Prestadores por Valor Facturado</div>
+                  <div className="chart-card-subtitle">Instituciones con mayor valor acumulado</div>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={prestadoresChart} layout="vertical" margin={{ left: 10, right: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(v) => formatShortCurrency(v)} axisLine={false} tickLine={false} />
+                  <YAxis dataKey="name" type="category" width={160} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
                   <Tooltip
                     formatter={(value: number) => [formatCurrency(value), 'Valor Total']}
-                    contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
+                    contentStyle={TOOLTIP_STYLE}
                   />
-                  <Bar dataKey="value" name="Valor Total" fill="#d97706" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="value" name="Valor Total" radius={[0, 6, 6, 0]} barSize={22}>
+                    {prestadoresChart.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
