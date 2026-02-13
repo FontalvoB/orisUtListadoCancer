@@ -37,7 +37,7 @@ export default function AdminLayout() {
 
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <div className="sidebar-logo">OU</div>
+          <img src="/assets/logo.png" alt="Oris UT" className="sidebar-logo-img" />
           <div className="sidebar-brand">
             <h2>Oris UT</h2>
             <span>Registro Oncologico</span>
