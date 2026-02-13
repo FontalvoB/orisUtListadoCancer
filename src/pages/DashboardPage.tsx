@@ -5,7 +5,7 @@ import type { CancerRecord } from '../types';
 import {
   HiDocumentReport, HiLocationMarker, HiCurrencyDollar, HiUserGroup,
   HiFilter, HiX, HiRefresh, HiTrendingUp, HiCalendar,
-  HiChevronUp, HiCube,
+  HiChevronUp, HiCube, HiChartBar, HiHeart,
 } from 'react-icons/hi';
 import {
   BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
@@ -618,7 +618,10 @@ export default function DashboardPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Dashboard Oncologico</h1>
+          <h1>
+            <HiChartBar size={28} className="icon-bounce" style={{ color: 'var(--brand)', verticalAlign: 'middle', marginRight: '0.5rem' }} />
+            Dashboard Oncologico
+          </h1>
           <p className="page-subtitle">
             {'Bienvenido, '}
             <strong style={{ color: 'var(--text-tertiary)', fontWeight: 500 }}>{user?.displayName ?? user?.email}</strong>

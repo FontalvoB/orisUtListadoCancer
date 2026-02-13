@@ -171,28 +171,61 @@
 
 .login-logo {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
   margin-bottom: 2rem;
 }
 
-.login-logo-icon {
-  width: 44px;
-  height: 44px;
-  background: var(--brand);
+.login-logo-img {
+  width: 250px;
+  height: 250px;
   border-radius: var(--radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.125rem;
-  font-weight: 800;
-  color: #fff;
-  letter-spacing: -0.04em;
+  object-fit: contain;
+  animation: logoPulse 2.5s ease-in-out infinite;
+  filter: drop-shadow(0 4px 12px rgba(99, 102, 241, 0.3));
+}
+
+@keyframes logoPulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 4px 12px rgba(99, 102, 241, 0.3));
+  }
+  50% {
+    transform: scale(1.06);
+    filter: drop-shadow(0 8px 24px rgba(99, 102, 241, 0.5));
+  }
+}
+
+.icon-bounce {
+  display: inline-block;
+  animation: iconBounce 2s ease-in-out infinite;
+}
+
+@keyframes iconBounce {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-4px); }
+  50% { transform: translateY(0); }
+  75% { transform: translateY(-2px); }
+}
+
+.icon-pulse {
+  display: inline-block;
+  animation: iconPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.25); opacity: 0.8; }
+}
+
+.login-logo-text {
+  text-align: center;
 }
 
 .login-logo-text h1 {
-  font-size: 1.375rem;
+  font-size: 1.75rem;
   font-weight: 800;
   color: var(--text);
   letter-spacing: -0.03em;
@@ -201,7 +234,7 @@
 }
 
 .login-logo-text p {
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   color: #000000;
   font-weight: 500;
 }
@@ -453,18 +486,11 @@
   gap: 0.625rem;
 }
 
-.sidebar-logo {
-  width: 36px;
-  height: 36px;
-  background: var(--brand);
+.sidebar-logo-img {
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.875rem;
-  font-weight: 800;
-  color: #fff;
-  letter-spacing: -0.04em;
+  object-fit: contain;
   flex-shrink: 0;
 }
 

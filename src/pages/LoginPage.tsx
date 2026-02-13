@@ -111,11 +111,7 @@ export default function LoginPage() {
         <ImageCarousel />
         <div className="login-card">
           <div className="login-logo">
-            <div className="login-logo-icon">OU</div>
-            <div className="login-logo-text">
-              <h1>Oris UT</h1>
-              <p>Plataforma Oncologica</p>
-            </div>
+            <img src="/assets/logo.png" alt="Oris UT" className="login-logo-img" />
           </div>
 
           {error && <div className="alert alert-error">{error}</div>}
