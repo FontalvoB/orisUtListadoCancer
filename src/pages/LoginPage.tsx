@@ -61,50 +61,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemoLogin = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const demoEmail = 'usuario@demo.com';
-      const demoPassword = 'Demo1234';
-      const demoName = 'Usuario Demo';
-
-      try {
-        // Intentar iniciar sesión
-        await login(demoEmail, demoPassword);
-      } catch (loginErr: unknown) {
-        // Si el usuario no existe, registrarlo
-        const errorCode = (loginErr as any)?.code || (loginErr as any)?.message || '';
-        if (errorCode.includes('user-not-found') || errorCode.includes('invalid-credential')) {
-          // Registrar nuevo usuario
-          const fbUser = await register(demoEmail, demoPassword, demoName);
-          await handleAfterAuth(fbUser.uid, demoEmail, demoName, '');
-          return;
-        } else {
-          throw loginErr;
-        }
-      }
-
-      // Si login fue exitoso
-      const { auth } = await import('../config/firebase');
-      const fbUser = auth.currentUser;
-      if (fbUser) {
-        await handleAfterAuth(
-          fbUser.uid,
-          fbUser.email ?? demoEmail,
-          fbUser.displayName ?? demoName,
-          fbUser.photoURL ?? ''
-        );
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      console.error('Error en demo login:', err);
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="login-page">
       <div className="login-left">

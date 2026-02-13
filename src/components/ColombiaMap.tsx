@@ -284,6 +284,23 @@ export default function ColombiaMap({
   }, [maxCasos]);
 
   // ── Detail panel data ──
+  const generalData = useMemo(() => {
+    const all = Object.values(departmentData);
+    if (all.length === 0) return null;
+    const casos = all.reduce((s, d) => s + d.casos, 0);
+    const valorTotal = all.reduce((s, d) => s + d.valorTotal, 0);
+    const pacientes = all.reduce((s, d) => s + d.pacientes, 0);
+    const conTutela = all.reduce((s, d) => s + d.conTutela, 0);
+    const sinTutela = all.reduce((s, d) => s + d.sinTutela, 0);
+    const tipoServicios: Record<string, number> = {};
+    const agrupadorServicios: Record<string, number> = {};
+    all.forEach(d => {
+      Object.entries(d.tipoServicios).forEach(([k, v]) => { tipoServicios[k] = (tipoServicios[k] || 0) + v; });
+      Object.entries(d.agrupadorServicios).forEach(([k, v]) => { agrupadorServicios[k] = (agrupadorServicios[k] || 0) + v; });
+    });
+    return { name: 'Colombia - General', casos, valorTotal, pacientes, conTutela, sinTutela, tipoServicios, agrupadorServicios };
+  }, [departmentData]);
+
   const detailData = useMemo(() => {
     if (!detailDept) return null;
     // Find matching key
@@ -294,6 +311,9 @@ export default function ColombiaMap({
     );
     return key ? { name: key, ...departmentData[key] } : null;
   }, [detailDept, departmentData]);
+
+  // The data to display: specific dept or general
+  const panelData = detailDept && detailData ? detailData : generalData;
 
   const prettyName = (raw: string) => {
     return raw
@@ -340,7 +360,7 @@ export default function ColombiaMap({
       </div>
 
       {/* ── Map + Detail layout ── */}
-      <div className={`colombia-map-layout ${detailDept ? 'with-detail' : ''}`}>
+      <div className={`colombia-map-layout ${panelData ? 'with-detail' : ''}`}>
 
       {/* ── Map ── */}
       <div
@@ -554,28 +574,30 @@ export default function ColombiaMap({
       </div>
 
         {/* ── Detail Panel ── */}
-        {detailDept && detailData && (
+        {panelData && (
           <div className="map-detail-panel">
             <div className="map-detail-header">
               <div>
-                <div className="map-detail-title">{prettyName(detailData.name)}</div>
-                <div className="map-detail-subtitle">Desglose departamental</div>
+                <div className="map-detail-title">{detailDept ? prettyName(panelData.name) : 'Resumen General'}</div>
+                <div className="map-detail-subtitle">{detailDept ? 'Desglose departamental' : 'Todos los departamentos'}</div>
               </div>
-              <button className="map-detail-close" onClick={() => setDetailDept(null)} title="Cerrar panel">✕</button>
+              {detailDept && (
+                <button className="map-detail-close" onClick={() => { setDetailDept(null); resetView(); }} title="Volver a vista general">✕</button>
+              )}
             </div>
 
             {/* KPI row */}
             <div className="map-detail-kpis">
               <div className="map-detail-kpi" style={{ animationDelay: '0.1s' }}>
-                <div className="map-detail-kpi-value">{detailData.casos.toLocaleString()}</div>
+                <div className="map-detail-kpi-value">{panelData.casos.toLocaleString()}</div>
                 <div className="map-detail-kpi-label">Casos Totales</div>
               </div>
               <div className="map-detail-kpi" style={{ animationDelay: '0.2s' }}>
-                <div className="map-detail-kpi-value">{detailData.pacientes.toLocaleString()}</div>
+                <div className="map-detail-kpi-value">{panelData.pacientes.toLocaleString()}</div>
                 <div className="map-detail-kpi-label">Pacientes</div>
               </div>
               <div className="map-detail-kpi" style={{ animationDelay: '0.3s' }}>
-                <div className="map-detail-kpi-value">{formatCurrency(detailData.valorTotal)}</div>
+                <div className="map-detail-kpi-value">{formatCurrency(panelData.valorTotal)}</div>
                 <div className="map-detail-kpi-label">Valor Total</div>
               </div>
             </div>
@@ -586,9 +608,9 @@ export default function ColombiaMap({
               <div className="map-detail-tutela">
                 <svg viewBox="0 0 120 120" width="110" height="110" className="tutela-chart">
                   {(() => {
-                    const total = detailData.conTutela + detailData.sinTutela;
-                    const pctCon = total > 0 ? detailData.conTutela / total : 0;
-                    const pctSin = total > 0 ? detailData.sinTutela / total : 0;
+                    const total = panelData.conTutela + panelData.sinTutela;
+                    const pctCon = total > 0 ? panelData.conTutela / total : 0;
+                    const pctSin = total > 0 ? panelData.sinTutela / total : 0;
                     const r = 48;
                     const cx = 60;
                     const cy = 60;
@@ -648,12 +670,12 @@ export default function ColombiaMap({
                   <div className="tutela-legend-item">
                     <span className="tutela-dot" style={{ background: '#ef4444' }} />
                     <span>Con tutela</span>
-                    <strong>{detailData.conTutela.toLocaleString()}</strong>
+                    <strong>{panelData.conTutela.toLocaleString()}</strong>
                   </div>
                   <div className="tutela-legend-item">
                     <span className="tutela-dot" style={{ background: '#e2e8f0' }} />
                     <span>Sin tutela</span>
-                    <strong>{detailData.sinTutela.toLocaleString()}</strong>
+                    <strong>{panelData.sinTutela.toLocaleString()}</strong>
                   </div>
                 </div>
               </div>
@@ -675,7 +697,7 @@ export default function ColombiaMap({
                   ['#818cf8', '#6366f1'], // indigo
                   ['#e879f9', '#d946ef'], // fuchsia
                 ];
-                const chartData = Object.entries(detailData.tipoServicios)
+                const chartData = Object.entries(panelData.tipoServicios)
                   .sort((a, b) => b[1] - a[1])
                   .map(([name, value], i) => ({
                     name,
@@ -802,7 +824,7 @@ export default function ColombiaMap({
             <div className="map-detail-section">
               <div className="map-detail-section-title">Agrupador de Servicios</div>
               {(() => {
-                const agr = detailData.agrupadorServicios;
+                const agr = panelData.agrupadorServicios;
                 const pieData = Object.entries(agr)
                   .sort((a, b) => b[1] - a[1])
                   .slice(0, 10)
