@@ -5,7 +5,7 @@ import type { CancerRecord } from '../types';
 import {
   HiDocumentReport, HiLocationMarker, HiCurrencyDollar, HiUserGroup,
   HiFilter, HiX, HiRefresh, HiTrendingUp, HiCalendar,
-  HiChevronUp, HiCube, HiChartBar, HiHeart,
+  HiChevronUp, HiCube, HiChartBar,
 } from 'react-icons/hi';
 import {
   BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
@@ -184,30 +184,6 @@ export default function DashboardPage() {
   }, [filteredRecords]);
 
   // Charts data
-  const diagnosticosChart = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredRecords.forEach(r => { const k = r.codDiagnostico || 'Sin Dx'; counts[k] = (counts[k] || 0) + 1; });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, value]) => ({ name, value }));
-  }, [filteredRecords]);
-
-  const departamentoChart = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredRecords.forEach(r => { const k = r.epcDepartamento || 'Sin Depto'; counts[k] = (counts[k] || 0) + 1; });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8)
-      .map(([name, value]) => ({ name: name.length > 18 ? name.substring(0, 18) + '...' : name, value }));
-  }, [filteredRecords]);
-
-  const servicioChart = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredRecords.forEach(r => { const k = r.tipoServicio || 'Sin Tipo'; counts[k] = (counts[k] || 0) + 1; });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
-  }, [filteredRecords]);
-
-  const contratoChart = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredRecords.forEach(r => { const k = r.tipoContrato || 'Sin Contrato'; counts[k] = (counts[k] || 0) + 1; });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
-  }, [filteredRecords]);
 
   const costoPeriodoChart = useMemo(() => {
     const map: Record<string, { periodo: string; valor: number; registros: number }> = {};
@@ -220,11 +196,7 @@ export default function DashboardPage() {
     return Object.values(map).sort((a, b) => parsePeriodo(a.periodo) - parsePeriodo(b.periodo));
   }, [filteredRecords]);
 
-  const estadoChart = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredRecords.forEach(r => { const k = r.estado || 'Sin Estado'; counts[k] = (counts[k] || 0) + 1; });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
-  }, [filteredRecords]);
+
 
   // ============ LOCALIZACIÓN DEL PPL ============
   const departamentoPacientesChart = useMemo(() => {
@@ -412,26 +384,7 @@ export default function DashboardPage() {
     return registrosConEstancia;
   }, [filteredRecords]);
 
-  const prestadoresChart = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredRecords.forEach(r => { const k = r.razonSocial || 'Sin Prestador'; map[k] = (map[k] || 0) + (r.valorTotal || 0); });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 8)
-      .map(([name, value]) => ({ name: name.length > 22 ? name.substring(0, 22) + '...' : name, value }));
-  }, [filteredRecords]);
 
-  const diasEstanciaChart = useMemo(() => {
-    const buckets: Record<string, number> = { '0': 0, '1-3': 0, '4-7': 0, '8-14': 0, '15-30': 0, '30+': 0 };
-    filteredRecords.forEach(r => {
-      const d = r.diasEstancia || 0;
-      if (d === 0) buckets['0']++;
-      else if (d <= 3) buckets['1-3']++;
-      else if (d <= 7) buckets['4-7']++;
-      else if (d <= 14) buckets['8-14']++;
-      else if (d <= 30) buckets['15-30']++;
-      else buckets['30+']++;
-    });
-    return Object.entries(buckets).map(([name, value]) => ({ name: name + ' dias', value }));
-  }, [filteredRecords]);
 
   // Records filtered by everything EXCEPT department (so the map always shows all departments)
   const recordsForMap = useMemo(() => {
@@ -459,7 +412,7 @@ export default function DashboardPage() {
     const map: Record<string, {
       casos: number; valorTotal: number; pacientes: Set<string>;
       conTutela: number; sinTutela: number;
-      ambulatorio: number; hospitalizacion: number; diagnostico: number; procedimiento: number; farmaco: number; otros: number;
+      tipoServicios: Record<string, number>;
       agrupadorServicios: Record<string, number>;
     }> = {};
     recordsForMap.forEach(r => {
