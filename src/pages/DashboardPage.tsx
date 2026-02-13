@@ -416,8 +416,7 @@ export default function DashboardPage() {
       agrupadorServicios: Record<string, number>;
     }> = {};
     recordsForMap.forEach(r => {
-      const depto = r.epcDepartamento || '';
-      if (!depto) return;
+      const depto = r.epcDepartamento || 'Sin Departamento';
       if (!map[depto]) map[depto] = {
         casos: 0, valorTotal: 0, pacientes: new Set(),
         conTutela: 0, sinTutela: 0,
@@ -427,10 +426,13 @@ export default function DashboardPage() {
       map[depto].casos += 1;
       map[depto].valorTotal += r.valorTotal || 0;
       if (r.numeroDocumento) map[depto].pacientes.add(r.numeroDocumento);
-      // Tutela
-      const tutRaw = String(r.tutelaUsuario || r.tutela || '').toUpperCase().trim();
-      const esTutela = tutRaw === 'SI' || tutRaw === 'SÍ' || tutRaw === 'S' || tutRaw === 'YES' || tutRaw === '1' || tutRaw === 'TRUE' || tutRaw === 'X' || tutRaw.includes('SI') || tutRaw.includes('SÍ');
-      if (esTutela) {
+      // Tutela - revisar ambos campos y priorizar el que indique tutela
+      const tutUsuario = String(r.tutelaUsuario || '').toUpperCase().trim();
+      const tutCampo = String(r.tutela || '').toUpperCase().trim();
+      // Es "con tutela" si CUALQUIERA de los dos campos lo indica
+      const esSinTutelaUsuario = tutUsuario === '' || tutUsuario === 'SIN TUTELA' || tutUsuario === 'NO' || tutUsuario === 'N' || tutUsuario === '0' || tutUsuario === 'FALSE';
+      const esSinTutelaCampo = tutCampo === '' || tutCampo === 'SIN TUTELA' || tutCampo === 'NO' || tutCampo === 'N' || tutCampo === '0' || tutCampo === 'FALSE';
+      if (!esSinTutelaUsuario || !esSinTutelaCampo) {
         map[depto].conTutela += 1;
       } else {
         map[depto].sinTutela += 1;
