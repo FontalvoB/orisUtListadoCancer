@@ -521,14 +521,14 @@ export default function DashboardPage() {
 
   // Chart 2: Agrupador de Servicios for the selected department, sorted desc
   const proceduresDxChart = useMemo(() => {
-    if (!selectedDeptDx) return [];
     const counts: Record<string, number> = {};
-    filteredRecords
-      .filter(r => (r.epcDepartamento || 'Sin Departamento') === selectedDeptDx)
-      .forEach(r => {
-        const agr = r.agrupadorServicios || 'Sin Agrupador';
-        counts[agr] = (counts[agr] || 0) + 1;
-      });
+    const source = selectedDeptDx
+      ? filteredRecords.filter(r => (r.epcDepartamento || 'Sin Departamento') === selectedDeptDx)
+      : filteredRecords;
+    source.forEach(r => {
+      const agr = r.agrupadorServicios || 'Sin Agrupador';
+      counts[agr] = (counts[agr] || 0) + 1;
+    });
     return Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
       .map(([name, value]) => ({ name, fullName: name, value }));
@@ -550,10 +550,10 @@ export default function DashboardPage() {
 
   // Valor total of ALL procedures in the selected department
   const deptTotalValue = useMemo(() => {
-    if (!selectedDeptDx) return 0;
-    return filteredRecords
-      .filter(r => (r.epcDepartamento || 'Sin Departamento') === selectedDeptDx)
-      .reduce((sum, r) => sum + (r.valorTotal || 0), 0);
+    const source = selectedDeptDx
+      ? filteredRecords.filter(r => (r.epcDepartamento || 'Sin Departamento') === selectedDeptDx)
+      : filteredRecords;
+    return source.reduce((sum, r) => sum + (r.valorTotal || 0), 0);
   }, [filteredRecords, selectedDeptDx]);
 
   const advancedFiltersActive = [
@@ -1294,7 +1294,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Chart 2: Agrupador de Servicios del departamento seleccionado */}
-            <div className="chart-card" style={{ animationDelay: '0.8s', opacity: selectedDeptDx ? 1 : 0.45, transition: 'opacity 0.3s' }}>
+            <div className="chart-card" style={{ animationDelay: '0.8s' }}>
               <div className="chart-header">
                 <div>
                   <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
@@ -1304,17 +1304,12 @@ export default function DashboardPage() {
                   <div className="chart-subtitle">
                     {selectedDeptDx
                       ? `Procedimientos en ${selectedDeptDx} (mayor a menor)`
-                      : 'Haz clic en un departamento para ver procedimientos'}
+                      : 'Procedimientos de todos los departamentos (mayor a menor)'}
                   </div>
                 </div>
-                {selectedDeptDx && <span className="chart-badge">{proceduresDxChart.length} agrupadores</span>}
+                <span className="chart-badge">{proceduresDxChart.length} agrupadores</span>
               </div>
-              {!selectedDeptDx ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 280, color: 'var(--text-muted)' }}>
-                  <HiCube size={40} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
-                  <p style={{ fontSize: '0.8125rem', textAlign: 'center', maxWidth: 220 }}>Selecciona un departamento en la gráfica izquierda</p>
-                </div>
-              ) : (
+              {proceduresDxChart.length > 0 ? (
                 <ResponsiveContainer width="100%" height={Math.max(280, proceduresDxChart.length * 30)}>
                   <BarChart data={proceduresDxChart} layout="vertical" margin={{ left: 10, right: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
@@ -1356,6 +1351,11 @@ export default function DashboardPage() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 280, color: 'var(--text-muted)' }}>
+                  <HiCube size={40} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
+                  <p style={{ fontSize: '0.8125rem', textAlign: 'center', maxWidth: 220 }}>No hay datos disponibles</p>
+                </div>
               )}
             </div>
 
@@ -1397,7 +1397,6 @@ export default function DashboardPage() {
               <div
                 className="kpi-card"
                 style={{
-                  opacity: selectedDeptDx ? 1 : 0.45,
                   transition: 'opacity 0.3s',
                 }}
               >
@@ -1408,9 +1407,7 @@ export default function DashboardPage() {
                   <div className="kpi-info">
                     <span className="kpi-label">Valor Total</span>
                     <div className="kpi-value" style={{ fontSize: '1.25rem' }}>
-                      {selectedDeptDx
-                        ? formatShortCurrency(deptTotalValue)
-                        : '—'}
+                      {formatShortCurrency(deptTotalValue)}
                     </div>
                   </div>
                 </div>
@@ -1420,7 +1417,7 @@ export default function DashboardPage() {
                   <span className="kpi-sub">
                     {selectedDeptDx
                       ? `${selectedDeptDx.length > 18 ? selectedDeptDx.substring(0, 18) + '...' : selectedDeptDx} · Todos los procedimientos`
-                      : 'Selecciona un departamento'}
+                      : 'Todos los departamentos · General'}
                   </span>
                 </div>
               </div>
