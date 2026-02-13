@@ -5,6 +5,7 @@ import type { CancerRecord } from '../types';
 import {
   HiDocumentReport, HiLocationMarker, HiCurrencyDollar, HiUserGroup,
   HiFilter, HiX, HiRefresh, HiTrendingUp, HiCalendar,
+  HiChevronUp, HiCube,
 } from 'react-icons/hi';
 import {
   BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
@@ -68,6 +69,13 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [filters, setFilters] = useState<DashboardFilters>(emptyFilters);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+
+  // State for the new drill-down charts
+  const [selectedDeptDx, setSelectedDeptDx] = useState<string | null>(null);
+  const [selectedProcedure, setSelectedProcedure] = useState<string | null>(null);
+  const [deptDxPage, setDeptDxPage] = useState(0);
+  const [hoveredRegionIdx, setHoveredRegionIdx] = useState<number | null>(null);
+  const DEPT_PAGE_SIZE = 10;
 
   const [departamentos, setDepartamentos] = useState<string[]>([]);
   const [tiposServicio, setTiposServicio] = useState<string[]>([]);
@@ -524,6 +532,62 @@ export default function DashboardPage() {
       updateFilter('epcDepartamento', match || departmentName);
     }
   }, [departamentos, updateFilter]);
+  // ============ DIAGNÓSTICO DETALLE DE CÁNCER ============
+  // Chart 1: Departments with cancer cases (all filtered records), sorted desc
+  const deptDxChart = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredRecords.forEach(r => {
+      const depto = r.epcDepartamento || 'Sin Departamento';
+      counts[depto] = (counts[depto] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value]) => ({ name, fullName: name, value }));
+  }, [filteredRecords]);
+
+  const deptDxTotalPages = Math.max(1, Math.ceil(deptDxChart.length / DEPT_PAGE_SIZE));
+  const deptDxPageData = useMemo(() => {
+    const start = deptDxPage * DEPT_PAGE_SIZE;
+    return deptDxChart.slice(start, start + DEPT_PAGE_SIZE);
+  }, [deptDxChart, deptDxPage]);
+
+  // Chart 2: Agrupador de Servicios for the selected department, sorted desc
+  const proceduresDxChart = useMemo(() => {
+    if (!selectedDeptDx) return [];
+    const counts: Record<string, number> = {};
+    filteredRecords
+      .filter(r => (r.epcDepartamento || 'Sin Departamento') === selectedDeptDx)
+      .forEach(r => {
+        const agr = r.agrupadorServicios || 'Sin Agrupador';
+        counts[agr] = (counts[agr] || 0) + 1;
+      });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value]) => ({ name, fullName: name, value }));
+  }, [filteredRecords, selectedDeptDx]);
+
+  // Cards: Valor Unitario and Valor Total for selected procedure in the selected department
+  const procedureValues = useMemo(() => {
+    if (!selectedDeptDx || !selectedProcedure) return null;
+    const matching = filteredRecords.filter(
+      r => (r.epcDepartamento || 'Sin Departamento') === selectedDeptDx &&
+           (r.agrupadorServicios || 'Sin Agrupador') === selectedProcedure
+    );
+    if (matching.length === 0) return null;
+    const totalValorUnitario = matching.reduce((sum, r) => sum + (r.valorUnitario || 0), 0);
+    const totalValorTotal = matching.reduce((sum, r) => sum + (r.valorTotal || 0), 0);
+    const promedioUnitario = totalValorUnitario / matching.length;
+    return { promedioUnitario, totalValorTotal, registros: matching.length };
+  }, [filteredRecords, selectedDeptDx, selectedProcedure]);
+
+  // Valor total of ALL procedures in the selected department
+  const deptTotalValue = useMemo(() => {
+    if (!selectedDeptDx) return 0;
+    return filteredRecords
+      .filter(r => (r.epcDepartamento || 'Sin Departamento') === selectedDeptDx)
+      .reduce((sum, r) => sum + (r.valorTotal || 0), 0);
+  }, [filteredRecords, selectedDeptDx]);
+
   const advancedFiltersActive = [
     filters.estadoAuditoria, filters.ciudadPrestador, filters.tipoDocumento, 
     filters.numeroFactura, filters.epcCiudad, filters.razonSocial, 
@@ -961,21 +1025,75 @@ export default function DashboardPage() {
                   <div className="chart-subtitle">Distribución regional de pacientes</div>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={280}>
+              <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
+                  <defs>
+                    {[
+                      ['#14b8a6', '#0d9488'],
+                      ['#60a5fa', '#3b82f6'],
+                      ['#fbbf24', '#f59e0b'],
+                      ['#f87171', '#ef4444'],
+                      ['#a78bfa', '#8b5cf6'],
+                      ['#22d3ee', '#06b6d4'],
+                      ['#4ade80', '#22c55e'],
+                      ['#f472b6', '#ec4899'],
+                      ['#fb923c', '#f97316'],
+                      ['#818cf8', '#6366f1'],
+                    ].map(([light, dark], i) => (
+                      <linearGradient key={`rpg-${i}`} id={`region-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor={light} stopOpacity={1} />
+                        <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
+                      </linearGradient>
+                    ))}
+                    <filter id="regionPieGlow">
+                      <feGaussianBlur stdDeviation="3" result="blur" />
+                      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
+                    <filter id="regionPieShadow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="4" stdDeviation="6" floodOpacity="0.18" />
+                    </filter>
+                  </defs>
                   <Pie
-                    data={regionPacientesChart} cx="50%" cy="50%"
-                    innerRadius={55} outerRadius={95}
-                    paddingAngle={3} dataKey="value" cornerRadius={3}
-                    label={({ name, percent, value }) => `${name}: ${value} (${(percent * 100).toFixed(1)}%)`}
-                    labelLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
-                    style={{ fontSize: 9.5, fontWeight: 500, fill: '#64748b' }}
+                    data={regionPacientesChart}
+                    cx="50%"
+                    cy="45%"
+                    innerRadius={55}
+                    outerRadius={105}
+                    paddingAngle={4}
+                    dataKey="value"
+                    cornerRadius={6}
+                    animationBegin={200}
+                    animationDuration={1400}
+                    animationEasing="ease-out"
+                    stroke="rgba(255,255,255,0.6)"
+                    strokeWidth={2}
+                    onMouseEnter={(_, index) => setHoveredRegionIdx(index)}
+                    onMouseLeave={() => setHoveredRegionIdx(null)}
+                    label={false}
+                    labelLine={false}
+                    style={{ filter: 'url(#regionPieShadow)', cursor: 'pointer' }}
                   >
-                    {regionPacientesChart.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    {regionPacientesChart.map((_, i) => (
+                      <Cell
+                        key={`region-pie-${i}`}
+                        fill={`url(#region-pie-grad-${i % 10})`}
+                        style={{ filter: 'url(#regionPieGlow)', transition: 'all 0.3s ease' }}
+                      />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Pacientes']} contentStyle={TOOLTIP_STYLE} />
+                  {/* Center label on hover */}
+                  {hoveredRegionIdx !== null && regionPacientesChart[hoveredRegionIdx] && (
+                    <text x="50%" y="42%" textAnchor="middle" dominantBaseline="central"
+                      style={{ fontSize: 26, fontWeight: 800, fill: '#0f172a', transition: 'all 0.2s' }}>
+                      {regionPacientesChart[hoveredRegionIdx].value.toLocaleString()}
+                    </text>
+                  )}
+                  {hoveredRegionIdx !== null && regionPacientesChart[hoveredRegionIdx] && (
+                    <text x="50%" y="52%" textAnchor="middle" dominantBaseline="central"
+                      style={{ fontSize: 11, fontWeight: 600, fill: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {regionPacientesChart[hoveredRegionIdx].name}
+                    </text>
+                  )}
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -1094,6 +1212,245 @@ export default function DashboardPage() {
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ DIAGNÓSTICO DETALLE DE CÁNCER ============ */}
+      {filteredRecords.length > 0 && (
+        <div style={{ marginTop: '1.5rem' }}>
+          <div style={{ marginBottom: '1rem' }}>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text)', margin: 0 }}>Diagnóstico Detalle de Cáncer</h2>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>Selecciona un departamento para ver sus procedimientos y valores</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '1.25rem', alignItems: 'start' }}>
+            {/* Chart 1: Departamentos con casos */}
+            <div className="chart-card" style={{ animationDelay: '0.7s' }}>
+              <div className="chart-header">
+                <div>
+                  <div className="chart-title">Casos por Departamento</div>
+                  <div className="chart-subtitle">Departamentos con casos de cáncer (mayor a menor)</div>
+                </div>
+                <span className="chart-badge">{deptDxChart.length} deptos</span>
+              </div>
+              <ResponsiveContainer width="100%" height={Math.max(320, deptDxPageData.length * 34)}>
+                <BarChart data={deptDxPageData} layout="vertical" margin={{ left: 10, right: 20 }}>
+                  <defs>
+                    <linearGradient id="gradDeptDx" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#0d9488" stopOpacity={0.6} />
+                      <stop offset="100%" stopColor="#0d9488" stopOpacity={0.9} />
+                    </linearGradient>
+                    <linearGradient id="gradDeptDxActive" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#0d9488" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="#0d9488" stopOpacity={1} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={110}
+                    tick={{ fontSize: 9, fill: '#64748b', fontWeight: 500 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v: string) => v.length > 16 ? v.substring(0, 16) + '...' : v}
+                  />
+                  <Tooltip
+                    cursor={false}
+                    formatter={(value: number) => [value.toLocaleString(), 'Casos']}
+                    contentStyle={TOOLTIP_STYLE}
+                  />
+                  <Bar
+                    dataKey="value"
+                    name="Casos"
+                    radius={[0, 6, 6, 0]}
+                    barSize={22}
+                    cursor="pointer"
+                    onClick={(data: any) => {
+                      const deptName = data?.fullName || data?.name;
+                      setSelectedDeptDx(deptName === selectedDeptDx ? null : deptName);
+                      setSelectedProcedure(null);
+                    }}
+                  >
+                    {deptDxPageData.map((entry, i) => (
+                      <Cell
+                        key={`dept-dx-${i}`}
+                        fill={entry.fullName === selectedDeptDx ? 'url(#gradDeptDxActive)' : 'url(#gradDeptDx)'}
+                        stroke={entry.fullName === selectedDeptDx ? '#0d9488' : 'none'}
+                        strokeWidth={entry.fullName === selectedDeptDx ? 1.5 : 0}
+                        style={{ cursor: 'pointer', transition: 'fill 0.2s' }}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              {/* Pagination controls */}
+              {deptDxTotalPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.625rem 0 0.25rem', borderTop: '1px solid var(--border-light)', marginTop: '0.5rem' }}>
+                  <button
+                    onClick={() => setDeptDxPage(p => Math.max(0, p - 1))}
+                    disabled={deptDxPage === 0}
+                    style={{
+                      padding: '0.25rem 0.625rem', fontSize: '0.75rem', fontWeight: 600,
+                      border: '1px solid var(--border)', borderRadius: 6, cursor: deptDxPage === 0 ? 'not-allowed' : 'pointer',
+                      background: deptDxPage === 0 ? 'var(--bg-tertiary)' : 'var(--bg-card)', color: deptDxPage === 0 ? 'var(--text-muted)' : 'var(--text)',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    ← Anterior
+                  </button>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, minWidth: 80, textAlign: 'center' }}>
+                    {deptDxPage + 1} / {deptDxTotalPages}
+                  </span>
+                  <button
+                    onClick={() => setDeptDxPage(p => Math.min(deptDxTotalPages - 1, p + 1))}
+                    disabled={deptDxPage >= deptDxTotalPages - 1}
+                    style={{
+                      padding: '0.25rem 0.625rem', fontSize: '0.75rem', fontWeight: 600,
+                      border: '1px solid var(--border)', borderRadius: 6, cursor: deptDxPage >= deptDxTotalPages - 1 ? 'not-allowed' : 'pointer',
+                      background: deptDxPage >= deptDxTotalPages - 1 ? 'var(--bg-tertiary)' : 'var(--bg-card)', color: deptDxPage >= deptDxTotalPages - 1 ? 'var(--text-muted)' : 'var(--text)',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Chart 2: Agrupador de Servicios del departamento seleccionado */}
+            <div className="chart-card" style={{ animationDelay: '0.8s', opacity: selectedDeptDx ? 1 : 0.45, transition: 'opacity 0.3s' }}>
+              <div className="chart-header">
+                <div>
+                  <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                    Agrupador de Servicios
+                    <HiChevronUp size={14} style={{ color: 'var(--brand)' }} />
+                  </div>
+                  <div className="chart-subtitle">
+                    {selectedDeptDx
+                      ? `Procedimientos en ${selectedDeptDx} (mayor a menor)`
+                      : 'Haz clic en un departamento para ver procedimientos'}
+                  </div>
+                </div>
+                {selectedDeptDx && <span className="chart-badge">{proceduresDxChart.length} agrupadores</span>}
+              </div>
+              {!selectedDeptDx ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 280, color: 'var(--text-muted)' }}>
+                  <HiCube size={40} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
+                  <p style={{ fontSize: '0.8125rem', textAlign: 'center', maxWidth: 220 }}>Selecciona un departamento en la gráfica izquierda</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={Math.max(280, proceduresDxChart.length * 30)}>
+                  <BarChart data={proceduresDxChart} layout="vertical" margin={{ left: 10, right: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={120}
+                      tick={{ fontSize: 8.5, fill: '#64748b', fontWeight: 500 }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v: string) => v.length > 18 ? v.substring(0, 18) + '...' : v}
+                    />
+                    <Tooltip
+                      cursor={false}
+                      formatter={(value: number) => [value.toLocaleString(), 'Registros']}
+                      contentStyle={TOOLTIP_STYLE}
+                    />
+                    <Bar
+                      dataKey="value"
+                      name="Registros"
+                      radius={[0, 6, 6, 0]}
+                      barSize={18}
+                      cursor="pointer"
+                      onClick={(data: any) => {
+                        const procName = data?.fullName || data?.name;
+                        setSelectedProcedure(procName === selectedProcedure ? null : procName);
+                      }}
+                    >
+                      {proceduresDxChart.map((entry, i) => (
+                        <Cell
+                          key={`proc-dx-${i}`}
+                          fill={entry.fullName === selectedProcedure ? '#0d9488' : CHART_COLORS[i % CHART_COLORS.length]}
+                          stroke={entry.fullName === selectedProcedure ? '#0d9488' : 'none'}
+                          strokeWidth={entry.fullName === selectedProcedure ? 1.5 : 0}
+                          style={{ cursor: 'pointer', transition: 'fill 0.2s' }}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Cards de Valor Unitario y Valor Total */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 220, maxWidth: 260 }}>
+              {/* Card: Valor Unitario por Procedimiento */}
+              <div
+                className="kpi-card"
+                style={{
+                  opacity: selectedProcedure ? 1 : 0.45,
+                  transition: 'opacity 0.3s',
+                }}
+              >
+                <div className="kpi-main">
+                  <div className="kpi-icon" style={{ background: 'rgba(59,130,246,0.08)', color: '#3b82f6', borderColor: 'rgba(59,130,246,0.2)' }}>
+                    <HiCurrencyDollar size={20} />
+                  </div>
+                  <div className="kpi-info">
+                    <span className="kpi-label">Valor Unitario</span>
+                    <div className="kpi-value" style={{ fontSize: '1.25rem' }}>
+                      {selectedProcedure && procedureValues
+                        ? formatShortCurrency(procedureValues.promedioUnitario)
+                        : '—'}
+                    </div>
+                  </div>
+                </div>
+                <div className="kpi-divider"></div>
+                <div className="kpi-detail">
+                  <span className="kpi-dot" style={{ background: '#3b82f6' }}></span>
+                  <span className="kpi-sub">
+                    {selectedProcedure && procedureValues
+                      ? `${procedureValues.registros} registro${procedureValues.registros !== 1 ? 's' : ''} · ${selectedProcedure.length > 18 ? selectedProcedure.substring(0, 18) + '...' : selectedProcedure}`
+                      : 'Selecciona un procedimiento'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Card: Valor Total del departamento */}
+              <div
+                className="kpi-card"
+                style={{
+                  opacity: selectedDeptDx ? 1 : 0.45,
+                  transition: 'opacity 0.3s',
+                }}
+              >
+                <div className="kpi-main">
+                  <div className="kpi-icon" style={{ background: 'rgba(16,185,129,0.08)', color: '#10b981', borderColor: 'rgba(16,185,129,0.2)' }}>
+                    <HiTrendingUp size={20} />
+                  </div>
+                  <div className="kpi-info">
+                    <span className="kpi-label">Valor Total</span>
+                    <div className="kpi-value" style={{ fontSize: '1.25rem' }}>
+                      {selectedDeptDx
+                        ? formatShortCurrency(deptTotalValue)
+                        : '—'}
+                    </div>
+                  </div>
+                </div>
+                <div className="kpi-divider"></div>
+                <div className="kpi-detail">
+                  <span className="kpi-dot" style={{ background: '#10b981' }}></span>
+                  <span className="kpi-sub">
+                    {selectedDeptDx
+                      ? `${selectedDeptDx.length > 18 ? selectedDeptDx.substring(0, 18) + '...' : selectedDeptDx} · Todos los procedimientos`
+                      : 'Selecciona un departamento'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
