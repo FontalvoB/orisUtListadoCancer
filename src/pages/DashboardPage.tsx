@@ -202,6 +202,192 @@ export default function DashboardPage() {
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
   }, [filteredRecords]);
 
+  // ============ LOCALIZACIÓN DEL PPL ============
+  const departamentoPacientesChart = useMemo(() => {
+    const pacientesPorDepto: Record<string, Set<string>> = {};
+    filteredRecords.forEach(r => {
+      const depto = r.epcDepartamento || 'Sin Departamento';
+      const paciente = r.numeroDocumento || '';
+      if (!pacientesPorDepto[depto]) pacientesPorDepto[depto] = new Set();
+      if (paciente) pacientesPorDepto[depto].add(paciente);
+    });
+    return Object.entries(pacientesPorDepto)
+      .map(([name, pacientes]) => ({ 
+        name: name.length > 15 ? name.substring(0, 15) + '...' : name, 
+        value: pacientes.size 
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+  }, [filteredRecords]);
+
+  const ciudadPacientesChart = useMemo(() => {
+    const pacientesPorCiudad: Record<string, Set<string>> = {};
+    filteredRecords.forEach(r => {
+      const ciudad = r.epcCiudad || 'Sin Ciudad';
+      const paciente = r.numeroDocumento || '';
+      if (!pacientesPorCiudad[ciudad]) pacientesPorCiudad[ciudad] = new Set();
+      if (paciente) pacientesPorCiudad[ciudad].add(paciente);
+    });
+    return Object.entries(pacientesPorCiudad)
+      .map(([name, pacientes]) => ({ 
+        name: name.length > 16 ? name.substring(0, 16) + '...' : name, 
+        value: pacientes.size 
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+  }, [filteredRecords]);
+
+  const regionPacientesChart = useMemo(() => {
+    const pacientesPorRegion: Record<string, Set<string>> = {};
+    filteredRecords.forEach(r => {
+      const region = r.regionalNormalizada || 'Sin Región';
+      const paciente = r.numeroDocumento || '';
+      if (!pacientesPorRegion[region]) pacientesPorRegion[region] = new Set();
+      if (paciente) pacientesPorRegion[region].add(paciente);
+    });
+    return Object.entries(pacientesPorRegion)
+      .map(([name, pacientes]) => ({ name, value: pacientes.size }))
+      .sort((a, b) => b.value - a.value);
+  }, [filteredRecords]);
+
+  // ============ ESTANCIA DEL PACIENTE ============
+
+  // Gráfica 1: Top 3 Empresas por Mes (ordenado cronológicamente)
+  const empresasPorMesChart = useMemo(() => {
+    // Obtener top 3 empresas por total de pacientes
+    const pacientesPorEmpresa: Record<string, Set<string>> = {};
+    filteredRecords.forEach(r => {
+      const empresa = r.razonSocial || 'Sin Empresa';
+      const paciente = r.numeroDocumento || '';
+      if (!pacientesPorEmpresa[empresa]) pacientesPorEmpresa[empresa] = new Set();
+      if (paciente) pacientesPorEmpresa[empresa].add(paciente);
+    });
+
+    const topEmpresas = Object.entries(pacientesPorEmpresa)
+      .sort((a, b) => b[1].size - a[1].size)
+      .slice(0, 3)
+      .map(([name]) => name);
+
+    // Agrupar por periodo y empresa (con Sets para contar únicos)
+    const periodoData: Record<string, any> = {};
+
+    filteredRecords.forEach(r => {
+      const periodo = r.periodo || 'Sin Periodo';
+      const empresa = r.razonSocial || 'Sin Empresa';
+      const paciente = r.numeroDocumento || '';
+
+      if (topEmpresas.includes(empresa) && paciente) {
+        if (!periodoData[periodo]) {
+          periodoData[periodo] = { periodo };
+          topEmpresas.forEach(emp => {
+            periodoData[periodo][`_set_${emp}`] = new Set();
+          });
+        }
+        periodoData[periodo][`_set_${empresa}`].add(paciente);
+      }
+    });
+
+    // Convertir Sets a counts y preparar data
+    const result = Object.entries(periodoData)
+      .map(([periodo, data]) => {
+        const dataPoint: any = { periodo };
+        topEmpresas.forEach(empresa => {
+          const shortName = empresa.length > 20 ? empresa.substring(0, 20) + '...' : empresa;
+          dataPoint[shortName] = data[`_set_${empresa}`]?.size || 0;
+        });
+        return dataPoint;
+      })
+      .sort((a, b) => a.periodo.localeCompare(b.periodo)); // Orden cronológico
+
+    return {
+      data: result,
+      empresas: topEmpresas.map(e => e.length > 20 ? e.substring(0, 20) + '...' : e)
+    };
+  }, [filteredRecords]);
+
+  const pacientesPorEstanciaChart = useMemo(() => {
+    const estanciaMap: Record<number, Set<string>> = {};
+
+    filteredRecords.forEach(r => {
+      const dias = r.diasEstancia || 0;
+      const paciente = r.numeroDocumento || '';
+
+      if (paciente && dias <= 30) {
+        if (!estanciaMap[dias]) estanciaMap[dias] = new Set();
+        estanciaMap[dias].add(paciente);
+      }
+    });
+
+    const result = [];
+    for (let i = 0; i <= 30; i++) {
+      result.push({ dias: i, pacientes: estanciaMap[i]?.size || 0 });
+    }
+
+    return result.filter(item => item.pacientes > 0);
+  }, [filteredRecords]);
+
+  const estanciaDetalleTable = useMemo(() => {
+    // Función para convertir número de Excel a fecha
+    const excelSerialToDate = (serial: any): Date | null => {
+      if (!serial) return null;
+
+      const numSerial = Number(serial);
+      if (!isNaN(numSerial) && numSerial > 1000) {
+        const excelEpoch = new Date(1899, 11, 30);
+        return new Date(excelEpoch.getTime() + numSerial * 86400000);
+      }
+
+      // Intentar parsear si es string
+      if (typeof serial === 'string') {
+        const parsed = new Date(serial);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+
+      return null;
+    };
+
+    // Función para formatear fecha
+    const formatDate = (date: Date | null): string => {
+      if (!date) return '-';
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    };
+
+    // Función para calcular días entre dos fechas
+    const calcularDias = (ingreso: Date | null, egreso: Date | null): number => {
+      if (!ingreso || !egreso) return 0;
+      const diffTime = egreso.getTime() - ingreso.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays >= 0 ? diffDays : 0;
+    };
+
+    const registrosConEstancia = filteredRecords
+      .filter(r => r.fechaIngreso || r.fechaEgreso || (r.diasEstancia && r.diasEstancia > 0))
+      .map(r => {
+        const fechaIngresoObj = excelSerialToDate(r.fechaIngreso);
+        const fechaEgresoObj = excelSerialToDate(r.fechaEgreso);
+
+        // Calcular días de estancia
+        const diasCalculados = calcularDias(fechaIngresoObj, fechaEgresoObj);
+
+        return {
+          razonSocial: r.razonSocial || 'Sin Razón Social',
+          ciudadPrestador: r.ciudadPrestador || 'Sin Ciudad',
+          fechaIngreso: formatDate(fechaIngresoObj),
+          fechaEgreso: formatDate(fechaEgresoObj),
+          diasEstancia: diasCalculados || r.diasEstancia || 0,
+          numeroDocumento: r.numeroDocumento || ''
+        };
+      })
+      .filter(r => r.diasEstancia > 0) // Solo mostrar con estancia válida
+      .sort((a, b) => b.diasEstancia - a.diasEstancia)
+      .slice(0, 15);
+
+    return registrosConEstancia;
+  }, [filteredRecords]);
+
   const prestadoresChart = useMemo(() => {
     const map: Record<string, number> = {};
     filteredRecords.forEach(r => { const k = r.razonSocial || 'Sin Prestador'; map[k] = (map[k] || 0) + (r.valorTotal || 0); });
@@ -616,170 +802,196 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </div>
 
-          {/* Row 2: Estado donut + Top Diagnostics */}
-          <div className="charts-row">
+          {/* ============ LOCALIZACIÓN DEL PPL ============ */}
+          <div className="charts-row" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
             <div className="chart-card" style={{ animationDelay: '0.2s' }}>
               <div className="chart-header">
                 <div>
-                  <div className="chart-title">Distribucion por Estado</div>
-                  <div className="chart-subtitle">Estado actual de las facturas</div>
+                  <div className="chart-title">Pacientes por Departamento</div>
+                  <div className="chart-subtitle">Cantidad de pacientes por departamento</div>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={estadoChart} cx="50%" cy="50%"
-                    innerRadius={70} outerRadius={110}
-                    paddingAngle={4} dataKey="value" cornerRadius={4}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    labelLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
-                    style={{ fontSize: 11, fontWeight: 500, fill: '#64748b' }}
-                  >
-                    {estadoChart.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
-                </PieChart>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={departamentoPacientesChart}>
+                  <defs>
+                    <linearGradient id="gradDeptoPacientes" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0d9488" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="#0d9488" stopOpacity={0.5} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 500 }} angle={-30} textAnchor="end" height={60} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Pacientes']} contentStyle={TOOLTIP_STYLE} />
+                  <Bar dataKey="value" name="Pacientes" fill="url(#gradDeptoPacientes)" radius={[6, 6, 0, 0]} barSize={26} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
 
             <div className="chart-card" style={{ animationDelay: '0.28s' }}>
               <div className="chart-header">
                 <div>
-                  <div className="chart-title">Top 10 Diagnosticos</div>
-                  <div className="chart-subtitle">Codigos CIE-10 mas frecuentes</div>
+                  <div className="chart-title">Pacientes por Ciudad</div>
+                  <div className="chart-subtitle">Cantidad de pacientes por ciudad</div>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={diagnosticosChart} layout="vertical" margin={{ left: 8 }}>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={ciudadPacientesChart} layout="vertical" margin={{ left: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis dataKey="name" type="category" width={55} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
-                  <Bar dataKey="value" name="Registros" radius={[0, 6, 6, 0]} barSize={20}>
-                    {diagnosticosChart.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                  <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 9.5, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Pacientes']} contentStyle={TOOLTIP_STYLE} />
+                  <Bar dataKey="value" name="Pacientes" radius={[0, 6, 6, 0]} barSize={16}>
+                    {ciudadPacientesChart.map((_, i) => (
+                      <Cell key={`cell-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </div>
 
-          {/* Row 3: Department + Service Type */}
-          <div className="charts-row">
             <div className="chart-card" style={{ animationDelay: '0.36s' }}>
               <div className="chart-header">
                 <div>
-                  <div className="chart-title">Registros por Departamento</div>
-                  <div className="chart-subtitle">Top departamentos con mayor volumen</div>
+                  <div className="chart-title">Pacientes por Región</div>
+                  <div className="chart-subtitle">Distribución regional de pacientes</div>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={departamentoChart}>
-                  <defs>
-                    <linearGradient id="gradBar1" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0d9488" stopOpacity={0.9} />
-                    <stop offset="100%" stopColor="#0d9488" stopOpacity={0.5} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 500 }} angle={-30} textAnchor="end" height={65} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
-                  <Bar dataKey="value" name="Registros" fill="url(#gradBar1)" radius={[6, 6, 0, 0]} barSize={32} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="chart-card" style={{ animationDelay: '0.44s' }}>
-              <div className="chart-header">
-                <div>
-                  <div className="chart-title">Tipo de Servicio</div>
-                  <div className="chart-subtitle">Hospitalizacion, ambulatorio, urgencias</div>
-                </div>
-              </div>
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie
-                    data={servicioChart} cx="50%" cy="50%"
-                    outerRadius={110} paddingAngle={3}
-                    dataKey="value" cornerRadius={4}
-                    label={({ name, percent }) => `${name.length > 12 ? name.substring(0, 12) + '..' : name} ${(percent * 100).toFixed(0)}%`}
+                    data={regionPacientesChart} cx="50%" cy="50%"
+                    innerRadius={55} outerRadius={95}
+                    paddingAngle={3} dataKey="value" cornerRadius={3}
+                    label={({ name, percent, value }) => `${name}: ${value} (${(percent * 100).toFixed(1)}%)`}
                     labelLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
-                    style={{ fontSize: 10, fontWeight: 500, fill: '#64748b' }}
+                    style={{ fontSize: 9.5, fontWeight: 500, fill: '#64748b' }}
                   >
-                    {servicioChart.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                    {regionPacientesChart.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
+                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Pacientes']} contentStyle={TOOLTIP_STYLE} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Row 4: Contract type + Days distribution */}
-          <div className="charts-row">
-            <div className="chart-card" style={{ animationDelay: '0.5s' }}>
+          {/* ============ ESTANCIA DEL PACIENTE ============ */}
+          <div className="charts-row" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            {/* Gráfica 1: Empresas por Mes - CON PERIODOS EN ORDEN */}
+            <div className="chart-card" style={{ animationDelay: '0.44s' }}>
               <div className="chart-header">
                 <div>
-                  <div className="chart-title">Tipo de Contrato</div>
-                  <div className="chart-subtitle">Distribucion por modalidad contractual</div>
+                  <div className="chart-title">Pacientes por Empresa y Mes</div>
+                  <div className="chart-subtitle">Top 3 empresas - Evolución mensual</div>
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={contratoChart}>
+                <BarChart data={empresasPorMesChart.data}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis 
+                    dataKey="periodo" 
+                    tick={{ fontSize: 8.5, fill: '#94a3b8', fontWeight: 500 }} 
+                    angle={-35} 
+                    textAnchor="end" 
+                    height={70}
+                    axisLine={false} 
+                    tickLine={false} 
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 10, fill: '#94a3b8' }} 
+                    axisLine={false} 
+                    tickLine={false} 
+                  />
+                  <Tooltip 
+                    contentStyle={TOOLTIP_STYLE}
+                    formatter={(value: number, name: string) => [value.toLocaleString() + ' pacientes', name]}
+                  />
+                  <Legend 
+                    wrapperStyle={{ fontSize: 9, fontWeight: 500 }} 
+                    iconType="rect"
+                  />
+                  {empresasPorMesChart.empresas.map((empresa, index) => (
+                    <Bar 
+                      key={empresa} 
+                      dataKey={empresa} 
+                      name={empresa}
+                      fill={CHART_COLORS[index % CHART_COLORS.length]} 
+                      radius={[4, 4, 0, 0]} 
+                      barSize={18}
+                    />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Gráfica 2: Pacientes por Días de Estancia */}
+            <div className="chart-card" style={{ animationDelay: '0.52s' }}>
+              <div className="chart-header">
+                <div>
+                  <div className="chart-title">Pacientes por Días de Estancia</div>
+                  <div className="chart-subtitle">Distribución según días hospitalizados</div>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={pacientesPorEstanciaChart}>
                   <defs>
-                    <linearGradient id="gradBar2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.85} />
-                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.45} />
+                    <linearGradient id="gradEstancia" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.2} />
+                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
-                  <Bar dataKey="value" name="Registros" fill="url(#gradBar2)" radius={[6, 6, 0, 0]} barSize={40} />
-                </BarChart>
+                  <XAxis dataKey="dias" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 500 }} axisLine={false} tickLine={false} label={{ value: 'Días', position: 'insideBottom', offset: -5, fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} label={{ value: 'Pacientes', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#64748b' }} />
+                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Pacientes']} contentStyle={TOOLTIP_STYLE} labelFormatter={(label) => `${label} días`} />
+                  <Area type="monotone" dataKey="pacientes" stroke="#8b5cf6" strokeWidth={2.5} fill="url(#gradEstancia)" dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 3 }} activeDot={{ r: 5, strokeWidth: 2, fill: '#fff', stroke: '#8b5cf6' }} />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
 
-            <div className="chart-card" style={{ animationDelay: '0.56s' }}>
+            {/* Gráfica 3: Tabla de Detalles - CON DÍAS CALCULADOS */}
+            <div className="chart-card" style={{ animationDelay: '0.6s', overflow: 'auto' }}>
               <div className="chart-header">
                 <div>
-                  <div className="chart-title">Dias de Estancia</div>
-                  <div className="chart-subtitle">Distribucion por rango de dias</div>
+                  <div className="chart-title">Detalle de Estancias</div>
+                  <div className="chart-subtitle">Top 15 con días calculados</div>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={diasEstanciaChart}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
-                  <Bar dataKey="value" name="Registros" radius={[6, 6, 0, 0]} barSize={36}>
-                    {diasEstanciaChart.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Row 5: Top providers full width */}
-          <div className="chart-card" style={{ animationDelay: '0.62s' }}>
-            <div className="chart-header">
-              <div>
-                <div className="chart-title">Top Prestadores por Valor Facturado</div>
-                <div className="chart-subtitle">Instituciones con mayor valor acumulado</div>
+              <div style={{ maxHeight: '280px', overflowY: 'auto', fontSize: '0.75rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 1 }}>
+                    <tr>
+                      <th style={{ padding: '0.5rem 0.375rem', textAlign: 'left', fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '2px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Institución</th>
+                      <th style={{ padding: '0.5rem 0.375rem', textAlign: 'left', fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '2px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ciudad</th>
+                      <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '2px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ingreso</th>
+                      <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '2px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Egreso</th>
+                      <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '2px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Días</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {estanciaDetalleTable.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>No hay datos de estancia disponibles</td>
+                      </tr>
+                    ) : (
+                      estanciaDetalleTable.map((row, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-light)', transition: 'background 0.15s' }}>
+                          <td style={{ padding: '0.5rem 0.375rem', fontSize: '0.6875rem', color: 'var(--text)', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.razonSocial}>
+                            {row.razonSocial.length > 18 ? row.razonSocial.substring(0, 18) + '...' : row.razonSocial}
+                          </td>
+                          <td style={{ padding: '0.5rem 0.375rem', fontSize: '0.6875rem', color: 'var(--text-secondary)' }}>{row.ciudadPrestador}</td>
+                          <td style={{ padding: '0.5rem 0.375rem', fontSize: '0.6875rem', color: 'var(--text-tertiary)', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{row.fechaIngreso}</td>
+                          <td style={{ padding: '0.5rem 0.375rem', fontSize: '0.6875rem', color: 'var(--text-tertiary)', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{row.fechaEgreso}</td>
+                          <td style={{ padding: '0.5rem 0.375rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--info)', textAlign: 'center' }}>{row.diasEstancia}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={prestadoresChart} layout="vertical" margin={{ left: 10, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(v) => formatShortCurrency(v)} axisLine={false} tickLine={false} />
-                <YAxis dataKey="name" type="category" width={160} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                <Tooltip formatter={(value: number) => [formatCurrency(value), 'Valor Total']} contentStyle={TOOLTIP_STYLE} />
-                <Bar dataKey="value" name="Valor Total" radius={[0, 6, 6, 0]} barSize={22}>
-                  {prestadoresChart.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
           </div>
         </div>
       )}
