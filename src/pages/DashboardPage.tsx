@@ -428,8 +428,9 @@ export default function DashboardPage() {
       map[depto].valorTotal += r.valorTotal || 0;
       if (r.numeroDocumento) map[depto].pacientes.add(r.numeroDocumento);
       // Tutela
-      const tut = (r.tutelaUsuario || r.tutela || '').toUpperCase().trim();
-      if (tut === 'SI' || tut === 'SÍ' || tut === 'S') {
+      const tutRaw = String(r.tutelaUsuario || r.tutela || '').toUpperCase().trim();
+      const esTutela = tutRaw === 'SI' || tutRaw === 'SÍ' || tutRaw === 'S' || tutRaw === 'YES' || tutRaw === '1' || tutRaw === 'TRUE' || tutRaw === 'X' || tutRaw.includes('SI') || tutRaw.includes('SÍ');
+      if (esTutela) {
         map[depto].conTutela += 1;
       } else {
         map[depto].sinTutela += 1;
