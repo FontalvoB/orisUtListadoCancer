@@ -23,18 +23,40 @@ import type { DocumentSnapshot } from 'firebase/firestore';
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100];
 
-// Visible columns in table (subset of all 32 for readability)
+// All columns from the Firestore collection
 const TABLE_COLUMNS: { key: keyof CancerRecord; label: string; width?: string }[] = [
-  { key: 'radicado', label: 'Radicado', width: '100px' },
-  { key: 'numeroDocumento', label: 'Nº Documento', width: '120px' },
+  { key: 'radicado', label: 'Radicado', width: '120px' },
+  { key: 'idInterno', label: 'ID Interno', width: '100px' },
+  { key: 'nitPrestador', label: 'NIT Prestador', width: '120px' },
   { key: 'razonSocial', label: 'Razón Social', width: '180px' },
-  { key: 'descDiagnostico', label: 'Diagnóstico', width: '200px' },
-  { key: 'codDiagnostico', label: 'Cód. Dx', width: '80px' },
-  { key: 'tipoServicio', label: 'Tipo Servicio', width: '120px' },
-  { key: 'valorTotal', label: 'Valor Total', width: '110px' },
-  { key: 'epcDepartamento', label: 'Departamento', width: '130px' },
-  { key: 'estado', label: 'Estado', width: '90px' },
-  { key: 'periodo', label: 'Periodo', width: '90px' },
+  { key: 'estado', label: 'Estado', width: '100px' },
+  { key: 'numeroFactura', label: 'Nº Factura', width: '120px' },
+  { key: 'estadoAuditoria', label: 'Estado Auditoría', width: '130px' },
+  { key: 'ciudadPrestador', label: 'Ciudad Prestador', width: '140px' },
+  { key: 'periodo', label: 'Periodo', width: '100px' },
+  { key: 'tipoDocumento', label: 'Tipo Doc.', width: '100px' },
+  { key: 'numeroDocumento', label: 'Nº Documento', width: '130px' },
+  { key: 'nombreEstablecimiento', label: 'Establecimiento', width: '180px' },
+  { key: 'epcCiudad', label: 'Ciudad Paciente', width: '140px' },
+  { key: 'epcDepartamento', label: 'Depto. Paciente', width: '140px' },
+  { key: 'regionalNormalizada', label: 'Regional', width: '140px' },
+  { key: 'fechaIngreso', label: 'Fecha Ingreso', width: '120px' },
+  { key: 'fechaEgreso', label: 'Fecha Egreso', width: '120px' },
+  { key: 'diasEstancia', label: 'Días Estancia', width: '100px' },
+  { key: 'tipoServicio', label: 'Tipo Servicio', width: '130px' },
+  { key: 'codigoServicio', label: 'Cód. Servicio', width: '120px' },
+  { key: 'descripcionServicio', label: 'Desc. Servicio', width: '180px' },
+  { key: 'agrupadorServicios', label: 'Agrupador Serv.', width: '140px' },
+  { key: 'codDiagnostico', label: 'Cód. Diagnóstico', width: '120px' },
+  { key: 'descDiagnostico', label: 'Desc. Diagnóstico', width: '200px' },
+  { key: 'dx', label: 'Dx', width: '80px' },
+  { key: 'cantidad', label: 'Cantidad', width: '90px' },
+  { key: 'valorUnitario', label: 'Valor Unitario', width: '120px' },
+  { key: 'valorTotal', label: 'Valor Total', width: '120px' },
+  { key: 'tipoContrato', label: 'Tipo Contrato', width: '120px' },
+  { key: 'tutelaUsuario', label: 'Tutela-Usuario', width: '120px' },
+  { key: 'conteo', label: 'Conteo', width: '80px' },
+  { key: 'tutela', label: 'Tutela', width: '80px' },
 ];
 
 export default function CancerRegistryPage() {
@@ -51,7 +73,7 @@ export default function CancerRegistryPage() {
   const [hasMore, setHasMore] = useState(false);
   const [pageHistory, setPageHistory] = useState<(DocumentSnapshot | null)[]>([null]);
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
 
   const totalPages = totalCount > 0 ? Math.ceil(totalCount / pageSize) : 1;
 
@@ -589,24 +611,65 @@ export default function CancerRegistryPage() {
         </div>
       </div>
 
-      {/* Table */}
-      {loading ? (
-        <div className="loading-inline"><div className="spinner" /><p>Cargando registros...</p></div>
-      ) : filteredRecords.length === 0 ? (
-        <div className="empty-state-container">
-          <div className="empty-state">
-            <div className="empty-state-icon">
-              <HiSearch />
-            </div>
-            <h3>No se encontraron registros</h3>
-            <p>Intenta ajustar los filtros o búsquedas</p>
+      {/* Pagination - Top */}
+      <div className="pagination-enhanced">
+        <button 
+          onClick={handlePrevPage} 
+          disabled={currentPage === 0} 
+          className="btn btn-pagination"
+          title="Página anterior"
+        >
+          <HiChevronLeft /> <span className="btn-label">Anterior</span>
+        </button>
+        
+        <div className="pagination-center">
+          <div className="page-size-selector-enhanced">
+            <label htmlFor="pageSize-top">Registros por página:</label>
+            <select
+              id="pageSize-top"
+              value={pageSize}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              className="size-select"
+            >
+              {PAGE_SIZE_OPTIONS.map(size => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
           </div>
+          <span className="page-info-enhanced">
+            Página <strong>{currentPage + 1}</strong> de <strong>{totalPages}</strong>
+          </span>
         </div>
-      ) : (
-        <>
-          {/* Desktop Table */}
-          <div className="table-wrapper-desktop">
-            <div className="table-container">
+
+        <button 
+          onClick={handleNextPage} 
+          disabled={!hasMore} 
+          className="btn btn-pagination"
+          title="Página siguiente"
+        >
+          <span className="btn-label">Siguiente</span> <HiChevronRight />
+        </button>
+      </div>
+
+      {/* Table */}
+      <div className="table-content-wrapper">
+        {loading ? (
+          <div className="loading-inline"><div className="spinner" /><p>Cargando registros...</p></div>
+        ) : filteredRecords.length === 0 ? (
+          <div className="empty-state-container">
+            <div className="empty-state">
+              <div className="empty-state-icon">
+                <HiSearch />
+              </div>
+              <h3>No se encontraron registros</h3>
+              <p>Intenta ajustar los filtros o búsquedas</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Desktop Table */}
+            <div className="table-wrapper-desktop">
+              <div className="table-container">
               <table className="data-table-enhanced">
                 <thead>
                   <tr>
@@ -756,6 +819,7 @@ export default function CancerRegistryPage() {
           </div>
         </>
       )}
+      </div>
 
       {/* Pagination */}
       <div className="pagination-enhanced">
@@ -770,7 +834,7 @@ export default function CancerRegistryPage() {
         
         <div className="pagination-center">
           <div className="page-size-selector-enhanced">
-            <label htmlFor="pageSize">Por página:</label>
+            <label htmlFor="pageSize">Registros por página:</label>
             <select
               id="pageSize"
               value={pageSize}

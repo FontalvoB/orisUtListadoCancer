@@ -15,6 +15,21 @@ import ColombiaMap from '../components/ColombiaMap';
 
 const CHART_COLORS = ['#0d9488', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#22c55e', '#ec4899', '#f97316', '#6366f1'];
 
+const MONTH_ORDER: Record<string, number> = {
+  ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6,
+  JULIO: 7, AGOSTO: 8, SEPTIEMBRE: 9, OCTUBRE: 10, NOVIEMBRE: 11, DICIEMBRE: 12,
+};
+
+function parsePeriodo(periodo: string): number {
+  const parts = periodo.split('/');
+  if (parts.length === 2) {
+    const year = parseInt(parts[0], 10) || 0;
+    const month = MONTH_ORDER[parts[1]?.toUpperCase()] || 0;
+    return year * 100 + month;
+  }
+  return 0;
+}
+
 const TOOLTIP_STYLE = {
   borderRadius: 10,
   border: '1px solid #e2e8f0',
@@ -202,7 +217,7 @@ export default function DashboardPage() {
       map[k].valor += r.valorTotal || 0;
       map[k].registros += 1;
     });
-    return Object.values(map).sort((a, b) => a.periodo.localeCompare(b.periodo));
+    return Object.values(map).sort((a, b) => parsePeriodo(a.periodo) - parsePeriodo(b.periodo));
   }, [filteredRecords]);
 
   const estadoChart = useMemo(() => {
@@ -306,7 +321,7 @@ export default function DashboardPage() {
         });
         return dataPoint;
       })
-      .sort((a, b) => a.periodo.localeCompare(b.periodo)); // Orden cronológico
+      .sort((a, b) => parsePeriodo(a.periodo) - parsePeriodo(b.periodo)); // Orden cronológico
 
     return {
       data: result,
@@ -1137,14 +1152,15 @@ export default function DashboardPage() {
                     wrapperStyle={{ fontSize: 9, fontWeight: 500 }} 
                     iconType="rect"
                   />
-                  {empresasPorMesChart.empresas.map((empresa, index) => (
+                  {empresasPorMesChart.empresas.map((empresa, index, arr) => (
                     <Bar 
                       key={empresa} 
                       dataKey={empresa} 
                       name={empresa}
+                      stackId="a"
                       fill={CHART_COLORS[index % CHART_COLORS.length]} 
-                      radius={[4, 4, 0, 0]} 
-                      barSize={18}
+                      radius={index === arr.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} 
+                      barSize={28}
                     />
                   ))}
                 </BarChart>
