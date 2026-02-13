@@ -10,6 +10,7 @@ import {
   BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
+import ColombiaMap from '../components/ColombiaMap';
 
 const CHART_COLORS = ['#0d9488', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#22c55e', '#ec4899', '#f97316', '#6366f1'];
 
@@ -409,6 +410,86 @@ export default function DashboardPage() {
     return Object.entries(buckets).map(([name, value]) => ({ name: name + ' dias', value }));
   }, [filteredRecords]);
 
+  // Records filtered by everything EXCEPT department (so the map always shows all departments)
+  const recordsForMap = useMemo(() => {
+    return allRecords.filter(r => {
+      if (filters.tipoServicio && r.tipoServicio !== filters.tipoServicio) return false;
+      if (filters.tipoContrato && r.tipoContrato !== filters.tipoContrato) return false;
+      if (filters.estado && r.estado !== filters.estado) return false;
+      if (filters.periodo && r.periodo !== filters.periodo) return false;
+      if (filters.codDiagnostico && r.codDiagnostico !== filters.codDiagnostico) return false;
+      if (filters.estadoAuditoria && r.estadoAuditoria !== filters.estadoAuditoria) return false;
+      if (filters.ciudadPrestador && r.ciudadPrestador !== filters.ciudadPrestador) return false;
+      if (filters.tipoDocumento && r.tipoDocumento !== filters.tipoDocumento) return false;
+      if (filters.numeroFactura && !r.numeroFactura?.includes(filters.numeroFactura)) return false;
+      if (filters.epcCiudad && r.epcCiudad !== filters.epcCiudad) return false;
+      if (filters.razonSocial && r.razonSocial !== filters.razonSocial) return false;
+      if (filters.tutelaUsuario && r.tutelaUsuario !== filters.tutelaUsuario) return false;
+      if (filters.codigoServicio && r.codigoServicio !== filters.codigoServicio) return false;
+      if (filters.regionalNormalizada && r.regionalNormalizada !== filters.regionalNormalizada) return false;
+      return true;
+    });
+  }, [allRecords, filters]);
+
+  // Map data — aggregate by department (uses records without department filter)
+  const departmentMapData = useMemo(() => {
+    const map: Record<string, {
+      casos: number; valorTotal: number; pacientes: Set<string>;
+      conTutela: number; sinTutela: number;
+      ambulatorio: number; hospitalizacion: number; diagnostico: number; procedimiento: number; farmaco: number; otros: number;
+      agrupadorServicios: Record<string, number>;
+    }> = {};
+    recordsForMap.forEach(r => {
+      const depto = r.epcDepartamento || '';
+      if (!depto) return;
+      if (!map[depto]) map[depto] = {
+        casos: 0, valorTotal: 0, pacientes: new Set(),
+        conTutela: 0, sinTutela: 0,
+        tipoServicios: {},
+        agrupadorServicios: {},
+      };
+      map[depto].casos += 1;
+      map[depto].valorTotal += r.valorTotal || 0;
+      if (r.numeroDocumento) map[depto].pacientes.add(r.numeroDocumento);
+      // Tutela
+      const tut = (r.tutelaUsuario || r.tutela || '').toUpperCase().trim();
+      if (tut === 'SI' || tut === 'SÍ' || tut === 'S') {
+        map[depto].conTutela += 1;
+      } else {
+        map[depto].sinTutela += 1;
+      }
+      // Tipo servicio - cada valor real
+      const ts = (r.tipoServicio || '').trim();
+      if (ts) {
+        const tsKey = ts.charAt(0).toUpperCase() + ts.slice(1).toLowerCase();
+        map[depto].tipoServicios[tsKey] = (map[depto].tipoServicios[tsKey] || 0) + 1;
+      } else {
+        map[depto].tipoServicios['Sin tipo'] = (map[depto].tipoServicios['Sin tipo'] || 0) + 1;
+      }
+      // Agrupador de servicios
+      const agr = (r.agrupadorServicios || '').trim();
+      if (agr) {
+        const agrKey = agr.charAt(0).toUpperCase() + agr.slice(1).toLowerCase();
+        map[depto].agrupadorServicios[agrKey] = (map[depto].agrupadorServicios[agrKey] || 0) + 1;
+      }
+    });
+    const result: Record<string, {
+      casos: number; valorTotal: number; pacientes: number;
+      conTutela: number; sinTutela: number;
+      tipoServicios: Record<string, number>;
+      agrupadorServicios: Record<string, number>;
+    }> = {};
+    for (const [k, v] of Object.entries(map)) {
+      result[k] = {
+        casos: v.casos, valorTotal: v.valorTotal, pacientes: v.pacientes.size,
+        conTutela: v.conTutela, sinTutela: v.sinTutela,
+        tipoServicios: v.tipoServicios,
+        agrupadorServicios: v.agrupadorServicios,
+      };
+    }
+    return result;
+  }, [recordsForMap]);
+
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
 
@@ -421,12 +502,28 @@ export default function DashboardPage() {
 
   const activeFilterCount = Object.values(filters).filter(v => v).length;
   const clearFilters = () => setFilters(emptyFilters);
-  const updateFilter = (key: keyof DashboardFilters, value: string) => {
+  const updateFilter = useCallback((key: keyof DashboardFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
-  };
+  }, []);
   const removeFilter = (key: keyof DashboardFilters) => {
     updateFilter(key, '');
   };
+
+  const handleMapDepartmentClick = useCallback((departmentName: string) => {
+    if (!departmentName) {
+      updateFilter('epcDepartamento', '');
+    } else {
+      const match = departamentos.find(d =>
+        d.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(
+          departmentName.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        ) ||
+        departmentName.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(
+          d.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        )
+      );
+      updateFilter('epcDepartamento', match || departmentName);
+    }
+  }, [departamentos, updateFilter]);
   const advancedFiltersActive = [
     filters.estadoAuditoria, filters.ciudadPrestador, filters.tipoDocumento, 
     filters.numeroFactura, filters.epcCiudad, filters.razonSocial, 
@@ -750,6 +847,13 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Colombia Map */}
+      <ColombiaMap
+        departmentData={departmentMapData}
+        onDepartmentClick={handleMapDepartmentClick}
+        selectedDepartment={filters.epcDepartamento}
+      />
 
       {filteredRecords.length === 0 ? (
         <div className="chart-card" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
