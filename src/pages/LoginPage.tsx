@@ -168,10 +168,6 @@ export default function LoginPage() {
 
           <div className="divider">o continua con</div>
 
-          <button onClick={handleDemoLogin} className="btn btn-demo" disabled={loading} style={{ width: '100%', marginTop: '0.5rem', padding: '0.75rem', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '500' }}>
-            {loading ? 'Cargando...' : 'Ingresar como usuario'}
-          </button>
-
           <p className="toggle-auth">
             {isRegister ? 'Ya tienes cuenta?' : 'No tienes cuenta?'}{' '}
             <button
