@@ -23,6 +23,27 @@ import type { CancerRecord } from '../types';
 
 const COLLECTION = 'cancerRecords';
 
+// ==================== IN-MEMORY CACHE ====================
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+let allRecordsCache: CacheEntry<CancerRecord[]> | null = null;
+let countCache: CacheEntry<Record<string, number>> = { data: {}, timestamp: 0 };
+
+const isCacheValid = <T>(cache: CacheEntry<T> | null): cache is CacheEntry<T> => {
+  return cache !== null && Date.now() - cache.timestamp < CACHE_TTL;
+};
+
+/** Invalidate all caches — call after create/update/delete/import */
+export const invalidateCancerCache = () => {
+  allRecordsCache = null;
+  countCache = { data: {}, timestamp: 0 };
+};
+
 const toDate = (ts: Timestamp | Date | undefined): Date => {
   if (!ts) return new Date();
   if (ts instanceof Date) return ts;
@@ -138,21 +159,31 @@ export const getCancerRecordsPaginated = async (
   const snap = await getDocs(q);
 
   // Only fetch count when needed (first page load or filter change), not on every page turn
+  // We also cache the count per filter key to avoid repeated server count queries
+  const filterKey = JSON.stringify(filters);
   let totalCount = 0;
   if (!skipCount) {
-    const countQueryConstraints: QueryConstraint[] = [];
-    if (filters.codDiagnostico) countQueryConstraints.push(where('codDiagnostico', '==', filters.codDiagnostico));
-    if (filters.epcDepartamento) countQueryConstraints.push(where('epcDepartamento', '==', filters.epcDepartamento));
-    if (filters.tipoServicio) countQueryConstraints.push(where('tipoServicio', '==', filters.tipoServicio));
-    if (filters.tipoContrato) countQueryConstraints.push(where('tipoContrato', '==', filters.tipoContrato));
-    if (filters.estado) countQueryConstraints.push(where('estado', '==', filters.estado));
-    if (filters.periodo) countQueryConstraints.push(where('periodo', '==', filters.periodo));
-    if (filters.ciudadPrestador) countQueryConstraints.push(where('ciudadPrestador', '==', filters.ciudadPrestador));
-    if (filters.numeroDocumento) countQueryConstraints.push(where('numeroDocumento', '==', filters.numeroDocumento));
+    if (isCacheValid(countCache) && countCache.data[filterKey] !== undefined) {
+      totalCount = countCache.data[filterKey];
+    } else {
+      const countQueryConstraints: QueryConstraint[] = [];
+      if (filters.codDiagnostico) countQueryConstraints.push(where('codDiagnostico', '==', filters.codDiagnostico));
+      if (filters.epcDepartamento) countQueryConstraints.push(where('epcDepartamento', '==', filters.epcDepartamento));
+      if (filters.tipoServicio) countQueryConstraints.push(where('tipoServicio', '==', filters.tipoServicio));
+      if (filters.tipoContrato) countQueryConstraints.push(where('tipoContrato', '==', filters.tipoContrato));
+      if (filters.estado) countQueryConstraints.push(where('estado', '==', filters.estado));
+      if (filters.periodo) countQueryConstraints.push(where('periodo', '==', filters.periodo));
+      if (filters.ciudadPrestador) countQueryConstraints.push(where('ciudadPrestador', '==', filters.ciudadPrestador));
+      if (filters.numeroDocumento) countQueryConstraints.push(where('numeroDocumento', '==', filters.numeroDocumento));
 
-    const countQuery = query(collection(db, COLLECTION), ...countQueryConstraints);
-    const countSnap = await getCountFromServer(countQuery);
-    totalCount = countSnap.data().count;
+      const countQuery = query(collection(db, COLLECTION), ...countQueryConstraints);
+      const countSnap = await getCountFromServer(countQuery);
+      totalCount = countSnap.data().count;
+      countCache = {
+        data: { ...countCache.data, [filterKey]: totalCount },
+        timestamp: Date.now(),
+      };
+    }
   }
 
   const records = snap.docs.map(docToRecord);
@@ -183,6 +214,7 @@ export const createCancerRecord = async (
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  invalidateCancerCache();
   return ref.id;
 };
 
@@ -197,11 +229,13 @@ export const updateCancerRecord = async (
     ...rest,
     updatedAt: serverTimestamp(),
   });
+  invalidateCancerCache();
 };
 
 // ==================== DELETE ====================
 export const deleteCancerRecord = async (id: string): Promise<void> => {
   await deleteDoc(doc(db, COLLECTION, id));
+  invalidateCancerCache();
 };
 
 // ==================== BATCH IMPORT (for Excel) ====================
@@ -231,26 +265,65 @@ export const importCancerRecords = async (
     onProgress?.(imported, records.length);
   }
 
+  invalidateCancerCache();
   return imported;
 };
 
-// ==================== GET DISTINCT VALUES (for filter dropdowns) ====================
-export const getDistinctValues = async (field: string): Promise<string[]> => {
-  const snap = await getDocs(collection(db, COLLECTION));
+// ==================== COMPUTE DISTINCT VALUES FROM RECORDS (in-memory) ====================
+/**
+ * Compute distinct values for a field from an already-loaded array of records.
+ * Use this instead of getDistinctValues() to avoid extra Firestore reads.
+ */
+export const computeDistinctValues = (
+  records: CancerRecord[],
+  field: keyof CancerRecord
+): string[] => {
   const values = new Set<string>();
-  snap.docs.forEach(d => {
-    const val = d.data()[field];
-    if (val && typeof val === 'string' && val.trim()) {
+  records.forEach(r => {
+    const val = r[field];
+    if (val != null && typeof val === 'string' && val.trim()) {
       values.add(val.trim());
     }
   });
   return Array.from(values).sort();
 };
 
-// ==================== GET ALL RECORDS (for analytics) ====================
-export const getAllCancerRecords = async (): Promise<CancerRecord[]> => {
+/**
+ * Compute multiple distinct value sets at once from the same records array.
+ * Returns a map of field → sorted unique string values.
+ */
+export const computeAllDistinctValues = (
+  records: CancerRecord[],
+  fields: (keyof CancerRecord)[]
+): Record<string, string[]> => {
+  const setsMap: Record<string, Set<string>> = {};
+  fields.forEach(f => { setsMap[f] = new Set(); });
+
+  records.forEach(r => {
+    fields.forEach(f => {
+      const val = r[f];
+      if (val != null && typeof val === 'string' && val.trim()) {
+        setsMap[f].add(val.trim());
+      }
+    });
+  });
+
+  const result: Record<string, string[]> = {};
+  fields.forEach(f => {
+    result[f] = Array.from(setsMap[f]).sort();
+  });
+  return result;
+};
+
+// ==================== GET ALL RECORDS (for analytics, with cache) ====================
+export const getAllCancerRecords = async (forceRefresh = false): Promise<CancerRecord[]> => {
+  if (!forceRefresh && isCacheValid(allRecordsCache)) {
+    return allRecordsCache!.data;
+  }
   const snap = await getDocs(collection(db, COLLECTION));
-  return snap.docs.map(docToRecord);
+  const records = snap.docs.map(docToRecord);
+  allRecordsCache = { data: records, timestamp: Date.now() };
+  return records;
 };
 
 // ==================== DELETE ALL (for reimport) ====================
@@ -282,5 +355,6 @@ export const deleteAllCancerRecords = async (
     }
   }
 
+  invalidateCancerCache();
   return totalDeleted;
 };

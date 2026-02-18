@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getAllCancerRecords, getDistinctValues } from '../services/cancerService';
+import { getAllCancerRecords, computeAllDistinctValues } from '../services/cancerService';
 import type { CancerRecord } from '../types';
 import {
   HiDocumentReport, HiLocationMarker, HiCurrencyDollar, HiUserGroup,
@@ -106,40 +106,34 @@ export default function DashboardPage() {
   const [codigosServicio, setCodigosServicio] = useState<string[]>([]);
   const [regionalizadas, setRegionalizadas] = useState<string[]>([]);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError('');
     try {
-      const [records, deptos, tipos, contratos, estadosList, periodosList, dxList, estadosAud, ciudPrest, tipDoc, ciudPac, razSoc, codServ, regNorm] = await Promise.all([
-        getAllCancerRecords(),
-        getDistinctValues('epcDepartamento'),
-        getDistinctValues('tipoServicio'),
-        getDistinctValues('tipoContrato'),
-        getDistinctValues('estado'),
-        getDistinctValues('periodo'),
-        getDistinctValues('codDiagnostico'),
-        getDistinctValues('estadoAuditoria'),
-        getDistinctValues('ciudadPrestador'),
-        getDistinctValues('tipoDocumento'),
-        getDistinctValues('epcCiudad'),
-        getDistinctValues('razonSocial'),
-        getDistinctValues('codigoServicio'),
-        getDistinctValues('regionalNormalizada'),
-      ]);
+      // Single Firestore read — all distinct values computed in memory
+      const records = await getAllCancerRecords(forceRefresh);
       setAllRecords(records);
-      setDepartamentos(deptos);
-      setTiposServicio(tipos);
-      setTiposContrato(contratos);
-      setEstados(estadosList);
-      setPeriodos(periodosList);
-      setDiagnosticos(dxList);
-      setEstadosAuditoria(estadosAud);
-      setCiudadesPrestador(ciudPrest);
-      setTiposDocumento(tipDoc);
-      setCiudadesPaciente(ciudPac);
-      setRazonSociales(razSoc);
-      setCodigosServicio(codServ);
-      setRegionalizadas(regNorm);
+
+      const distinct = computeAllDistinctValues(records, [
+        'epcDepartamento', 'tipoServicio', 'tipoContrato', 'estado',
+        'periodo', 'codDiagnostico', 'estadoAuditoria', 'ciudadPrestador',
+        'tipoDocumento', 'epcCiudad', 'razonSocial', 'codigoServicio',
+        'regionalNormalizada',
+      ]);
+
+      setDepartamentos(distinct['epcDepartamento'] ?? []);
+      setTiposServicio(distinct['tipoServicio'] ?? []);
+      setTiposContrato(distinct['tipoContrato'] ?? []);
+      setEstados(distinct['estado'] ?? []);
+      setPeriodos(distinct['periodo'] ?? []);
+      setDiagnosticos(distinct['codDiagnostico'] ?? []);
+      setEstadosAuditoria(distinct['estadoAuditoria'] ?? []);
+      setCiudadesPrestador(distinct['ciudadPrestador'] ?? []);
+      setTiposDocumento(distinct['tipoDocumento'] ?? []);
+      setCiudadesPaciente(distinct['epcCiudad'] ?? []);
+      setRazonSociales(distinct['razonSocial'] ?? []);
+      setCodigosServicio(distinct['codigoServicio'] ?? []);
+      setRegionalizadas(distinct['regionalNormalizada'] ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error cargando datos');
     } finally {
@@ -580,7 +574,7 @@ export default function DashboardPage() {
     return (
       <div className="page">
         <div className="alert alert-error">{error}</div>
-        <button onClick={loadData} className="btn btn-primary"><HiRefresh /> Reintentar</button>
+        <button onClick={() => loadData(true)} className="btn btn-primary"><HiRefresh /> Reintentar</button>
       </div>
     );
   }
@@ -599,7 +593,7 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="header-actions">
-          <button onClick={loadData} className="btn btn-secondary">
+          <button onClick={() => loadData(true)} className="btn btn-secondary">
             <HiRefresh size={14} /> Actualizar
           </button>
         </div>

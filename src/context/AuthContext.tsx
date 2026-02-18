@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -36,14 +36,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [userRolePermissions, setUserRolePermissions] = useState<string[]>([]);
 
+  // Cache roles to avoid repeated Firestore reads
+  const rolesCacheRef = useRef<Record<string, string[]>>({});
+  const rolesInitializedRef = useRef(false);
+
   const loadProfile = async (fbUser: User): Promise<UserProfile | null> => {
     try {
       const profile = await getUserProfile(fbUser.uid);
       if (profile && profile.roleId) {
         try {
-          const role = await getRoleByName(profile.roleName);
-          if (role) {
-            setUserRolePermissions(role.permissions);
+          // Check in-memory cache first
+          if (rolesCacheRef.current[profile.roleName]) {
+            setUserRolePermissions(rolesCacheRef.current[profile.roleName]);
+          } else {
+            const role = await getRoleByName(profile.roleName);
+            if (role) {
+              rolesCacheRef.current[profile.roleName] = role.permissions;
+              setUserRolePermissions(role.permissions);
+            }
           }
         } catch {
           setUserRolePermissions([]);
@@ -59,8 +69,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Initialize roles on app start
-    initializeRoles().catch(console.error);
+    // Initialize roles only once per session
+    if (!rolesInitializedRef.current) {
+      rolesInitializedRef.current = true;
+      initializeRoles().catch(console.error);
+    }
 
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
