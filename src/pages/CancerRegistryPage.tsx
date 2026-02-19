@@ -25,38 +25,91 @@ const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100];
 
 // All columns from the Firestore collection
 const TABLE_COLUMNS: { key: keyof CancerRecord; label: string; width?: string }[] = [
-  { key: 'radicado', label: 'Radicado', width: '120px' },
-  { key: 'idInterno', label: 'ID Interno', width: '100px' },
-  { key: 'nitPrestador', label: 'NIT Prestador', width: '120px' },
-  { key: 'razonSocial', label: 'Razón Social', width: '180px' },
-  { key: 'estado', label: 'Estado', width: '100px' },
-  { key: 'numeroFactura', label: 'Nº Factura', width: '120px' },
-  { key: 'estadoAuditoria', label: 'Estado Auditoría', width: '130px' },
-  { key: 'ciudadPrestador', label: 'Ciudad Prestador', width: '140px' },
-  { key: 'periodo', label: 'Periodo', width: '100px' },
-  { key: 'tipoDocumento', label: 'Tipo Doc.', width: '100px' },
+  { key: 'tipoDocumento', label: 'Tipo Documento', width: '120px' },
   { key: 'numeroDocumento', label: 'Nº Documento', width: '130px' },
+  { key: 'primerApellido', label: 'Primer Apellido', width: '140px' },
+  { key: 'segundoApellido', label: 'Segundo Apellido', width: '140px' },
+  { key: 'primerNombre', label: 'Primer Nombre', width: '140px' },
+  { key: 'segundoNombre', label: 'Segundo Nombre', width: '140px' },
+  { key: 'edad', label: 'Edad', width: '80px' },
+  { key: 'cursoDeVida', label: 'Curso de Vida', width: '140px' },
+  { key: 'sexo', label: 'Sexo', width: '80px' },
   { key: 'nombreEstablecimiento', label: 'Establecimiento', width: '180px' },
-  { key: 'epcCiudad', label: 'Ciudad Paciente', width: '140px' },
-  { key: 'epcDepartamento', label: 'Depto. Paciente', width: '140px' },
+  { key: 'epcCiudad', label: 'Ciudad', width: '140px' },
+  { key: 'epcDepartamento', label: 'Departamento', width: '140px' },
   { key: 'regionalNormalizada', label: 'Regional', width: '140px' },
-  { key: 'fechaIngreso', label: 'Fecha Ingreso', width: '120px' },
-  { key: 'fechaEgreso', label: 'Fecha Egreso', width: '120px' },
-  { key: 'diasEstancia', label: 'Días Estancia', width: '100px' },
-  { key: 'tipoServicio', label: 'Tipo Servicio', width: '130px' },
-  { key: 'codigoServicio', label: 'Cód. Servicio', width: '120px' },
-  { key: 'descripcionServicio', label: 'Desc. Servicio', width: '180px' },
-  { key: 'agrupadorServicios', label: 'Agrupador Serv.', width: '140px' },
-  { key: 'codDiagnostico', label: 'Cód. Diagnóstico', width: '120px' },
-  { key: 'descDiagnostico', label: 'Desc. Diagnóstico', width: '200px' },
-  { key: 'dx', label: 'Dx', width: '80px' },
-  { key: 'cantidad', label: 'Cantidad', width: '90px' },
-  { key: 'valorUnitario', label: 'Valor Unitario', width: '120px' },
-  { key: 'valorTotal', label: 'Valor Total', width: '120px' },
-  { key: 'tipoContrato', label: 'Tipo Contrato', width: '120px' },
-  { key: 'tutelaUsuario', label: 'Tutela-Usuario', width: '120px' },
-  { key: 'conteo', label: 'Conteo', width: '80px' },
-  { key: 'tutela', label: 'Tutela', width: '80px' },
+  { key: 'discapacidad', label: 'Discapacidad', width: '120px' },
+  { key: 'lgtbiq', label: 'LGTBIQ+', width: '100px' },
+  { key: 'gruposEtnicos', label: 'Grupos Étnicos', width: '140px' },
+  { key: 'estado', label: 'Estado', width: '100px' },
+  { key: 'novedad', label: 'Novedad', width: '120px' },
+  { key: 'hipertensionHTA', label: 'Hipertensión (HTA)', width: '130px' },
+  { key: 'diabetesMellitusDM', label: 'Diabetes Mellitus (DM)', width: '150px' },
+  { key: 'vih', label: 'VIH', width: '80px' },
+  { key: 'sifilis', label: 'Sífilis', width: '80px' },
+  { key: 'varicela', label: 'Varicela', width: '100px' },
+  { key: 'tuberculosis', label: 'Tuberculosis', width: '120px' },
+  { key: 'hiperlipidemia', label: 'Hiperlipidemia', width: '120px' },
+  { key: 'asma', label: 'Asma', width: '80px' },
+  { key: 'enfermedadRenalCronicaERC', label: 'ERC', width: '80px' },
+  { key: 'desnutricion', label: 'Desnutrición', width: '120px' },
+  { key: 'obesidad', label: 'Obesidad', width: '100px' },
+  { key: 'epilepsia', label: 'Epilepsia', width: '100px' },
+  { key: 'hipotiroidismo', label: 'Hipotiroidismo', width: '120px' },
+  { key: 'enfermedadPulmonarObstructivaCronicaEPOC', label: 'EPOC', width: '80px' },
+  { key: 'artritis', label: 'Artritis', width: '100px' },
+  { key: 'cancerCA', label: 'Cáncer (CA)', width: '100px' },
+  { key: 'tipoDeCancer', label: 'Tipo de Cáncer', width: '150px' },
+  { key: 'patologiasCardiacas', label: 'Patologías Cardíacas', width: '150px' },
+  { key: 'trastornoSaludMental', label: 'Trastorno/Salud Mental', width: '150px' },
+  { key: 'gestantes', label: 'Gestantes', width: '100px' },
+  { key: 'mujeresConTrastornosMenstruales', label: 'Trastornos Menstruales', width: '150px' },
+  { key: 'endometriosis', label: 'Endometriosis', width: '120px' },
+  { key: 'amenorrea', label: 'Amenorrea', width: '100px' },
+  { key: 'glaucoma', label: 'Glaucoma', width: '100px' },
+  { key: 'consumoDeSPA', label: 'Consumo de SPA', width: '120px' },
+  { key: 'enfermedadHuerfana', label: 'Enfermedad Huérfana', width: '150px' },
+  { key: 'hiperplasiaDeProstata', label: 'Hiperplasia de Próstata', width: '150px' },
+  { key: 'hemofilia', label: 'Hemofilia', width: '100px' },
+  { key: 'otrosTrastornosVisuales', label: 'Otros Trastornos Visuales', width: '150px' },
+  { key: 'numeroDERiesgos', label: 'Nº de Riesgos', width: '100px' },
+  { key: 'valoracionMedicinaGeneralFamiliar', label: 'Valoración Med. General', width: '150px' },
+  { key: 'consultaJoven', label: 'Consulta Joven', width: '120px' },
+  { key: 'consultaAdultez', label: 'Consulta Adultez', width: '130px' },
+  { key: 'consultaVejez', label: 'Consulta Vejez', width: '120px' },
+  { key: 'citologiaTamizajeCACervix', label: 'Citología Ca Cérvix', width: '150px' },
+  { key: 'resultadoCitologia', label: 'Resultado Citología', width: '130px' },
+  { key: 'planificacionFamiliar', label: 'Planificación Familiar', width: '150px' },
+  { key: 'metodo', label: 'Método', width: '120px' },
+  { key: 'consultaDeMama', label: 'Consulta de Mama', width: '130px' },
+  { key: 'mamografia', label: 'Mamografía', width: '120px' },
+  { key: 'resultadoMamografia', label: 'Resultado Mamografía', width: '130px' },
+  { key: 'tamizajeCAProstata', label: 'Tamizaje Ca Próstata', width: '150px' },
+  { key: 'resultadoProstata', label: 'Resultado Próstata', width: '130px' },
+  { key: 'tamizajeCADeColon', label: 'Tamizaje Ca Colon', width: '130px' },
+  { key: 'resultadoColon', label: 'Resultado Colon', width: '130px' },
+  { key: 'creatinina', label: 'Creatinina', width: '100px' },
+  { key: 'glicemia', label: 'Glicemia', width: '100px' },
+  { key: 'hdl', label: 'HDL', width: '80px' },
+  { key: 'colesterolTotal', label: 'Colesterol Total', width: '130px' },
+  { key: 'ldl', label: 'LDL', width: '80px' },
+  { key: 'trigliceridos', label: 'Triglicéridos', width: '120px' },
+  { key: 'pediatria', label: 'Pediatría', width: '100px' },
+  { key: 'medicinaInterna', label: 'Medicina Interna', width: '130px' },
+  { key: 'educacion', label: 'Educación', width: '100px' },
+  { key: 'odontologia', label: 'Odontología', width: '120px' },
+  { key: 'tomaVIH', label: 'Toma VIH', width: '100px' },
+  { key: 'tomaSifilis', label: 'Toma Sífilis', width: '110px' },
+  { key: 'tomaHepatitisB', label: 'Toma Hepatitis B', width: '130px' },
+  { key: 'psicologia', label: 'Psicología', width: '100px' },
+  { key: 'nutricion', label: 'Nutrición', width: '100px' },
+  { key: 'ginecologia', label: 'Ginecología', width: '120px' },
+  { key: 'ortopedia', label: 'Ortopedia', width: '100px' },
+  { key: 'endocrinologia', label: 'Endocrinología', width: '120px' },
+  { key: 'oftalmologia', label: 'Oftalmología', width: '120px' },
+  { key: 'psiquiatria', label: 'Psiquiatría', width: '110px' },
+  { key: 'terapiaFisica', label: 'Terapia Física', width: '120px' },
+  { key: 'intervenciones', label: 'Intervenciones', width: '180px' },
 ];
 
 export default function CancerRegistryPage() {
@@ -159,12 +212,11 @@ export default function CancerRegistryPage() {
 
   const filteredRecords = quickSearch
     ? records.filter(r =>
-        r.descDiagnostico.toLowerCase().includes(quickSearch.toLowerCase()) ||
-        r.codDiagnostico.toLowerCase().includes(quickSearch.toLowerCase()) ||
-        r.radicado.toLowerCase().includes(quickSearch.toLowerCase()) ||
         r.numeroDocumento.toLowerCase().includes(quickSearch.toLowerCase()) ||
-        r.razonSocial.toLowerCase().includes(quickSearch.toLowerCase()) ||
-        r.nombreEstablecimiento.toLowerCase().includes(quickSearch.toLowerCase())
+        r.primerNombre.toLowerCase().includes(quickSearch.toLowerCase()) ||
+        r.primerApellido.toLowerCase().includes(quickSearch.toLowerCase()) ||
+        r.nombreEstablecimiento.toLowerCase().includes(quickSearch.toLowerCase()) ||
+        r.estado.toLowerCase().includes(quickSearch.toLowerCase())
       )
     : records;
 
@@ -206,9 +258,9 @@ export default function CancerRegistryPage() {
         userName: user?.displayName ?? '',
         action: 'update',
         module: 'cancer',
-        description: `Registro actualizado: ${editForm.radicado ?? editingRecord.radicado}`,
+        description: `Registro actualizado: ${editForm.numeroDocumento ?? editingRecord.numeroDocumento}`,
         targetId: editingRecord.id,
-        targetName: String(editForm.radicado ?? editingRecord.radicado),
+        targetName: String(editForm.numeroDocumento ?? editingRecord.numeroDocumento),
         details: { changes: cancerChanges },
       });
       setSuccessMsg('Registro actualizado');
@@ -222,7 +274,7 @@ export default function CancerRegistryPage() {
 
   // ====== DELETE ======
   const handleDelete = async (record: CancerRecord) => {
-    if (!window.confirm(`¿Eliminar registro ${record.radicado}?`)) return;
+    if (!window.confirm(`¿Eliminar registro ${record.numeroDocumento}?`)) return;
     try {
       await deleteCancerRecord(record.id);
       await logActivity({
@@ -231,10 +283,10 @@ export default function CancerRegistryPage() {
         userName: user?.displayName ?? '',
         action: 'delete',
         module: 'cancer',
-        description: `Registro eliminado: ${record.radicado}`,
+        description: `Registro eliminado: ${record.numeroDocumento}`,
         targetId: record.id,
-        targetName: record.radicado,
-        details: { registroEliminado: { radicado: record.radicado, documento: record.numeroDocumento, diagnostico: record.descDiagnostico, estado: record.estado } },
+        targetName: record.numeroDocumento,
+        details: { registroEliminado: { documento: record.numeroDocumento, primerNombre: record.primerNombre, primerApellido: record.primerApellido, estado: record.estado } },
       });
       setSuccessMsg('Registro eliminado');
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -249,38 +301,91 @@ export default function CancerRegistryPage() {
     setError('');
     try {
       await createCancerRecord({
-        radicado: String(createForm.radicado ?? ''),
-        idInterno: String(createForm.idInterno ?? ''),
-        nitPrestador: String(createForm.nitPrestador ?? ''),
-        razonSocial: String(createForm.razonSocial ?? ''),
-        estado: String(createForm.estado ?? ''),
-        numeroFactura: String(createForm.numeroFactura ?? ''),
-        estadoAuditoria: String(createForm.estadoAuditoria ?? ''),
-        ciudadPrestador: String(createForm.ciudadPrestador ?? ''),
-        periodo: String(createForm.periodo ?? ''),
         tipoDocumento: String(createForm.tipoDocumento ?? ''),
         numeroDocumento: String(createForm.numeroDocumento ?? ''),
+        primerApellido: String(createForm.primerApellido ?? ''),
+        segundoApellido: String(createForm.segundoApellido ?? ''),
+        primerNombre: String(createForm.primerNombre ?? ''),
+        segundoNombre: String(createForm.segundoNombre ?? ''),
+        edad: Number(createForm.edad ?? 0),
+        cursoDeVida: String(createForm.cursoDeVida ?? ''),
+        sexo: String(createForm.sexo ?? ''),
         nombreEstablecimiento: String(createForm.nombreEstablecimiento ?? ''),
         epcCiudad: String(createForm.epcCiudad ?? ''),
         epcDepartamento: String(createForm.epcDepartamento ?? ''),
         regionalNormalizada: String(createForm.regionalNormalizada ?? ''),
-        fechaIngreso: String(createForm.fechaIngreso ?? ''),
-        fechaEgreso: String(createForm.fechaEgreso ?? ''),
-        diasEstancia: Number(createForm.diasEstancia ?? 0),
-        tipoServicio: String(createForm.tipoServicio ?? ''),
-        codigoServicio: String(createForm.codigoServicio ?? ''),
-        descripcionServicio: String(createForm.descripcionServicio ?? ''),
-        agrupadorServicios: String(createForm.agrupadorServicios ?? ''),
-        codDiagnostico: String(createForm.codDiagnostico ?? ''),
-        descDiagnostico: String(createForm.descDiagnostico ?? ''),
-        dx: String(createForm.dx ?? ''),
-        cantidad: Number(createForm.cantidad ?? 0),
-        valorUnitario: Number(createForm.valorUnitario ?? 0),
-        valorTotal: Number(createForm.valorTotal ?? 0),
-        tipoContrato: String(createForm.tipoContrato ?? ''),
-        tutelaUsuario: String(createForm.tutelaUsuario ?? ''),
-        conteo: Number(createForm.conteo ?? 0),
-        tutela: String(createForm.tutela ?? ''),
+        discapacidad: String(createForm.discapacidad ?? ''),
+        lgtbiq: String(createForm.lgtbiq ?? ''),
+        gruposEtnicos: String(createForm.gruposEtnicos ?? ''),
+        estado: String(createForm.estado ?? ''),
+        novedad: String(createForm.novedad ?? ''),
+        hipertensionHTA: String(createForm.hipertensionHTA ?? ''),
+        diabetesMellitusDM: String(createForm.diabetesMellitusDM ?? ''),
+        vih: String(createForm.vih ?? ''),
+        sifilis: String(createForm.sifilis ?? ''),
+        varicela: String(createForm.varicela ?? ''),
+        tuberculosis: String(createForm.tuberculosis ?? ''),
+        hiperlipidemia: String(createForm.hiperlipidemia ?? ''),
+        asma: String(createForm.asma ?? ''),
+        enfermedadRenalCronicaERC: String(createForm.enfermedadRenalCronicaERC ?? ''),
+        desnutricion: String(createForm.desnutricion ?? ''),
+        obesidad: String(createForm.obesidad ?? ''),
+        epilepsia: String(createForm.epilepsia ?? ''),
+        hipotiroidismo: String(createForm.hipotiroidismo ?? ''),
+        enfermedadPulmonarObstructivaCronicaEPOC: String(createForm.enfermedadPulmonarObstructivaCronicaEPOC ?? ''),
+        artritis: String(createForm.artritis ?? ''),
+        cancerCA: String(createForm.cancerCA ?? ''),
+        tipoDeCancer: String(createForm.tipoDeCancer ?? ''),
+        patologiasCardiacas: String(createForm.patologiasCardiacas ?? ''),
+        trastornoSaludMental: String(createForm.trastornoSaludMental ?? ''),
+        gestantes: String(createForm.gestantes ?? ''),
+        mujeresConTrastornosMenstruales: String(createForm.mujeresConTrastornosMenstruales ?? ''),
+        endometriosis: String(createForm.endometriosis ?? ''),
+        amenorrea: String(createForm.amenorrea ?? ''),
+        glaucoma: String(createForm.glaucoma ?? ''),
+        consumoDeSPA: String(createForm.consumoDeSPA ?? ''),
+        enfermedadHuerfana: String(createForm.enfermedadHuerfana ?? ''),
+        hiperplasiaDeProstata: String(createForm.hiperplasiaDeProstata ?? ''),
+        hemofilia: String(createForm.hemofilia ?? ''),
+        otrosTrastornosVisuales: String(createForm.otrosTrastornosVisuales ?? ''),
+        numeroDERiesgos: String(createForm.numeroDERiesgos ?? ''),
+        valoracionMedicinaGeneralFamiliar: String(createForm.valoracionMedicinaGeneralFamiliar ?? ''),
+        consultaJoven: String(createForm.consultaJoven ?? ''),
+        consultaAdultez: String(createForm.consultaAdultez ?? ''),
+        consultaVejez: String(createForm.consultaVejez ?? ''),
+        citologiaTamizajeCACervix: String(createForm.citologiaTamizajeCACervix ?? ''),
+        resultadoCitologia: String(createForm.resultadoCitologia ?? ''),
+        planificacionFamiliar: String(createForm.planificacionFamiliar ?? ''),
+        metodo: String(createForm.metodo ?? ''),
+        consultaDeMama: String(createForm.consultaDeMama ?? ''),
+        mamografia: String(createForm.mamografia ?? ''),
+        resultadoMamografia: String(createForm.resultadoMamografia ?? ''),
+        tamizajeCAProstata: String(createForm.tamizajeCAProstata ?? ''),
+        resultadoProstata: String(createForm.resultadoProstata ?? ''),
+        tamizajeCADeColon: String(createForm.tamizajeCADeColon ?? ''),
+        resultadoColon: String(createForm.resultadoColon ?? ''),
+        creatinina: String(createForm.creatinina ?? ''),
+        glicemia: String(createForm.glicemia ?? ''),
+        hdl: String(createForm.hdl ?? ''),
+        colesterolTotal: String(createForm.colesterolTotal ?? ''),
+        ldl: String(createForm.ldl ?? ''),
+        trigliceridos: String(createForm.trigliceridos ?? ''),
+        pediatria: String(createForm.pediatria ?? ''),
+        medicinaInterna: String(createForm.medicinaInterna ?? ''),
+        educacion: String(createForm.educacion ?? ''),
+        odontologia: String(createForm.odontologia ?? ''),
+        tomaVIH: String(createForm.tomaVIH ?? ''),
+        tomaSifilis: String(createForm.tomaSifilis ?? ''),
+        tomaHepatitisB: String(createForm.tomaHepatitisB ?? ''),
+        psicologia: String(createForm.psicologia ?? ''),
+        nutricion: String(createForm.nutricion ?? ''),
+        ginecologia: String(createForm.ginecologia ?? ''),
+        ortopedia: String(createForm.ortopedia ?? ''),
+        endocrinologia: String(createForm.endocrinologia ?? ''),
+        oftalmologia: String(createForm.oftalmologia ?? ''),
+        psiquiatria: String(createForm.psiquiatria ?? ''),
+        terapiaFisica: String(createForm.terapiaFisica ?? ''),
+        intervenciones: String(createForm.intervenciones ?? ''),
       });
       setSuccessMsg('Registro creado correctamente');
       await logActivity({
@@ -289,9 +394,9 @@ export default function CancerRegistryPage() {
         userName: user?.displayName ?? '',
         action: 'create',
         module: 'cancer',
-        description: `Registro de cáncer creado: ${createForm.radicado ?? 'sin radicado'}`,
-        targetName: String(createForm.radicado ?? ''),
-        details: { nuevoRegistro: { radicado: createForm.radicado, documento: createForm.numeroDocumento, diagnostico: createForm.descDiagnostico, estado: createForm.estado, servicio: createForm.descripcionServicio } },
+        description: `Registro de cáncer creado: ${createForm.numeroDocumento ?? 'sin documento'}`,
+        targetName: String(createForm.numeroDocumento ?? ''),
+        details: { nuevoRegistro: { documento: createForm.numeroDocumento, primerNombre: createForm.primerNombre, primerApellido: createForm.primerApellido, estado: createForm.estado } },
       });
       setTimeout(() => setSuccessMsg(''), 3000);
       setShowCreate(false);
@@ -302,50 +407,101 @@ export default function CancerRegistryPage() {
     }
   };
 
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
-
   const renderCellValue = (record: CancerRecord, key: keyof CancerRecord) => {
     const val = record[key];
-    if (key === 'valorTotal' || key === 'valorUnitario') return formatCurrency(val as number);
+    if (val === undefined || val === null) return '';
     if (typeof val === 'number') return val.toLocaleString();
-    return String(val ?? '');
+    if (val instanceof Date) return val.toLocaleDateString('es-CO');
+    return String(val);
   };
 
-  // All fields for detail/edit forms
+  // All fields for detail/edit forms — everything is text now (dates/values stored as strings)
   const allFields: { key: keyof CancerRecord; label: string; type: 'text' | 'number' }[] = [
-    { key: 'radicado', label: 'Radicado', type: 'text' },
-    { key: 'idInterno', label: 'ID Interno', type: 'text' },
-    { key: 'nitPrestador', label: 'NIT Prestador', type: 'text' },
-    { key: 'razonSocial', label: 'Razón Social', type: 'text' },
-    { key: 'estado', label: 'Estado', type: 'text' },
-    { key: 'numeroFactura', label: 'Número Factura', type: 'text' },
-    { key: 'estadoAuditoria', label: 'Estado Auditoría', type: 'text' },
-    { key: 'ciudadPrestador', label: 'Ciudad Prestador', type: 'text' },
-    { key: 'periodo', label: 'Periodo', type: 'text' },
     { key: 'tipoDocumento', label: 'Tipo Documento', type: 'text' },
     { key: 'numeroDocumento', label: 'Número Documento', type: 'text' },
-    { key: 'nombreEstablecimiento', label: 'Nombre Establecimiento', type: 'text' },
-    { key: 'epcCiudad', label: 'Ciudad Paciente', type: 'text' },
-    { key: 'epcDepartamento', label: 'Departamento Paciente', type: 'text' },
+    { key: 'primerApellido', label: 'Primer Apellido', type: 'text' },
+    { key: 'segundoApellido', label: 'Segundo Apellido', type: 'text' },
+    { key: 'primerNombre', label: 'Primer Nombre', type: 'text' },
+    { key: 'segundoNombre', label: 'Segundo Nombre', type: 'text' },
+    { key: 'edad', label: 'Edad', type: 'number' },
+    { key: 'cursoDeVida', label: 'Curso de Vida', type: 'text' },
+    { key: 'sexo', label: 'Sexo', type: 'text' },
+    { key: 'nombreEstablecimiento', label: 'Establecimiento', type: 'text' },
+    { key: 'epcCiudad', label: 'Ciudad', type: 'text' },
+    { key: 'epcDepartamento', label: 'Departamento', type: 'text' },
     { key: 'regionalNormalizada', label: 'Regional Normalizada', type: 'text' },
-    { key: 'fechaIngreso', label: 'Fecha Ingreso', type: 'text' },
-    { key: 'fechaEgreso', label: 'Fecha Egreso', type: 'text' },
-    { key: 'diasEstancia', label: 'Días Estancia', type: 'number' },
-    { key: 'tipoServicio', label: 'Tipo Servicio', type: 'text' },
-    { key: 'codigoServicio', label: 'Código Servicio', type: 'text' },
-    { key: 'descripcionServicio', label: 'Descripción Servicio', type: 'text' },
-    { key: 'agrupadorServicios', label: 'Agrupador Servicios', type: 'text' },
-    { key: 'codDiagnostico', label: 'Cód. Diagnóstico', type: 'text' },
-    { key: 'descDiagnostico', label: 'Desc. Diagnóstico', type: 'text' },
-    { key: 'dx', label: 'dx', type: 'text' },
-    { key: 'cantidad', label: 'Cantidad', type: 'number' },
-    { key: 'valorUnitario', label: 'Valor Unitario', type: 'number' },
-    { key: 'valorTotal', label: 'Valor Total', type: 'number' },
-    { key: 'tipoContrato', label: 'Tipo Contrato', type: 'text' },
-    { key: 'tutelaUsuario', label: 'Tutela-Usuario', type: 'text' },
-    { key: 'conteo', label: 'Conteo', type: 'number' },
-    { key: 'tutela', label: 'Tutela', type: 'text' },
+    { key: 'discapacidad', label: 'Discapacidad', type: 'text' },
+    { key: 'lgtbiq', label: 'LGTBIQ+', type: 'text' },
+    { key: 'gruposEtnicos', label: 'Grupos Étnicos', type: 'text' },
+    { key: 'estado', label: 'Estado', type: 'text' },
+    { key: 'novedad', label: 'Novedad', type: 'text' },
+    { key: 'hipertensionHTA', label: 'Hipertensión (HTA)', type: 'text' },
+    { key: 'diabetesMellitusDM', label: 'Diabetes Mellitus (DM)', type: 'text' },
+    { key: 'vih', label: 'VIH', type: 'text' },
+    { key: 'sifilis', label: 'Sífilis', type: 'text' },
+    { key: 'varicela', label: 'Varicela', type: 'text' },
+    { key: 'tuberculosis', label: 'Tuberculosis', type: 'text' },
+    { key: 'hiperlipidemia', label: 'Hiperlipidemia', type: 'text' },
+    { key: 'asma', label: 'Asma', type: 'text' },
+    { key: 'enfermedadRenalCronicaERC', label: 'Enfermedad Renal Crónica', type: 'text' },
+    { key: 'desnutricion', label: 'Desnutrición', type: 'text' },
+    { key: 'obesidad', label: 'Obesidad', type: 'text' },
+    { key: 'epilepsia', label: 'Epilepsia', type: 'text' },
+    { key: 'hipotiroidismo', label: 'Hipotiroidismo', type: 'text' },
+    { key: 'enfermedadPulmonarObstructivaCronicaEPOC', label: 'EPOC', type: 'text' },
+    { key: 'artritis', label: 'Artritis', type: 'text' },
+    { key: 'cancerCA', label: 'Cáncer (CA)', type: 'text' },
+    { key: 'tipoDeCancer', label: 'Tipo de Cáncer', type: 'text' },
+    { key: 'patologiasCardiacas', label: 'Patologías Cardíacas', type: 'text' },
+    { key: 'trastornoSaludMental', label: 'Trastorno/Salud Mental', type: 'text' },
+    { key: 'gestantes', label: 'Gestantes', type: 'text' },
+    { key: 'mujeresConTrastornosMenstruales', label: 'Trastornos Menstruales', type: 'text' },
+    { key: 'endometriosis', label: 'Endometriosis', type: 'text' },
+    { key: 'amenorrea', label: 'Amenorrea', type: 'text' },
+    { key: 'glaucoma', label: 'Glaucoma', type: 'text' },
+    { key: 'consumoDeSPA', label: 'Consumo de SPA', type: 'text' },
+    { key: 'enfermedadHuerfana', label: 'Enfermedad Huérfana', type: 'text' },
+    { key: 'hiperplasiaDeProstata', label: 'Hiperplasia de Próstata', type: 'text' },
+    { key: 'hemofilia', label: 'Hemofilia', type: 'text' },
+    { key: 'otrosTrastornosVisuales', label: 'Otros Trastornos Visuales', type: 'text' },
+    { key: 'numeroDERiesgos', label: 'Número de Riesgos', type: 'text' },
+    { key: 'valoracionMedicinaGeneralFamiliar', label: 'Valoración Med. General', type: 'text' },
+    { key: 'consultaJoven', label: 'Consulta Joven', type: 'text' },
+    { key: 'consultaAdultez', label: 'Consulta Adultez', type: 'text' },
+    { key: 'consultaVejez', label: 'Consulta Vejez', type: 'text' },
+    { key: 'citologiaTamizajeCACervix', label: 'Citología Tamizaje Ca Cérvix', type: 'text' },
+    { key: 'resultadoCitologia', label: 'Resultado Citología', type: 'text' },
+    { key: 'planificacionFamiliar', label: 'Planificación Familiar', type: 'text' },
+    { key: 'metodo', label: 'Método', type: 'text' },
+    { key: 'consultaDeMama', label: 'Consulta de Mama', type: 'text' },
+    { key: 'mamografia', label: 'Mamografía', type: 'text' },
+    { key: 'resultadoMamografia', label: 'Resultado Mamografía', type: 'text' },
+    { key: 'tamizajeCAProstata', label: 'Tamizaje Ca Próstata', type: 'text' },
+    { key: 'resultadoProstata', label: 'Resultado Próstata', type: 'text' },
+    { key: 'tamizajeCADeColon', label: 'Tamizaje Ca Colon', type: 'text' },
+    { key: 'resultadoColon', label: 'Resultado Colon', type: 'text' },
+    { key: 'creatinina', label: 'Creatinina', type: 'text' },
+    { key: 'glicemia', label: 'Glicemia', type: 'text' },
+    { key: 'hdl', label: 'HDL', type: 'text' },
+    { key: 'colesterolTotal', label: 'Colesterol Total', type: 'text' },
+    { key: 'ldl', label: 'LDL', type: 'text' },
+    { key: 'trigliceridos', label: 'Triglicéridos', type: 'text' },
+    { key: 'pediatria', label: 'Pediatría', type: 'text' },
+    { key: 'medicinaInterna', label: 'Medicina Interna', type: 'text' },
+    { key: 'educacion', label: 'Educación', type: 'text' },
+    { key: 'odontologia', label: 'Odontología', type: 'text' },
+    { key: 'tomaVIH', label: 'Toma VIH', type: 'text' },
+    { key: 'tomaSifilis', label: 'Toma Sífilis', type: 'text' },
+    { key: 'tomaHepatitisB', label: 'Toma Hepatitis B', type: 'text' },
+    { key: 'psicologia', label: 'Psicología', type: 'text' },
+    { key: 'nutricion', label: 'Nutrición', type: 'text' },
+    { key: 'ginecologia', label: 'Ginecología', type: 'text' },
+    { key: 'ortopedia', label: 'Ortopedia', type: 'text' },
+    { key: 'endocrinologia', label: 'Endocrinología', type: 'text' },
+    { key: 'oftalmologia', label: 'Oftalmología', type: 'text' },
+    { key: 'psiquiatria', label: 'Psiquiatría', type: 'text' },
+    { key: 'terapiaFisica', label: 'Terapia Física', type: 'text' },
+    { key: 'intervenciones', label: 'Intervenciones', type: 'text' },
   ];
 
   const activeFilterCount = Object.values(filters).filter(v => v && v.trim()).length;
@@ -355,72 +511,178 @@ export default function CancerRegistryPage() {
     const headers = Object.keys(EXCEL_TO_FIELD_MAP);
     const sampleRows = [
       {
-        'RADICADO': '1234567',
-        'ID INTERNO': '001',
-        'NIT PRESTADOR': '900123456',
-        'RAZON SOCIAL': 'HOSPITAL EJEMPLO',
-        'ESTADO': 'ACTIVO',
-        'NUMERO FACTURA': 'FAC-001',
-        'ESTADO AUDITORIA': 'AUDITADO',
-        'CIUDAD PRESTADOR': 'BOGOTÁ',
-        'PERIODO': '2025-01',
-        'TIPO DOCUMENTO': 'CC',
-        'NUMERO DOCUMENTO': '1234567890',
-        'NOMBRE_ESTABLECIMIENTO DEL PACIENTE': 'CLÍNICA EJEMPLO',
-        'EPC_CIUDAD DEL PACIENTE': 'MEDELLÍN',
-        'EPC_DEPARTAMENTO DEL PACIENTE': 'ANTIOQUIA',
-        'REGIONAL_NORMALIZADA DEL PACIENTE': 'REGIONAL NOROESTE',
-        'FECHA INGRESO': '2025-01-15',
-        'FECHA EGRESO': '2025-01-20',
-        'DIAS ESTANCIA': 5,
-        'TIPO SERVICIO': 'HOSPITALIZACIÓN',
-        'CODIGO SERVICIO': 'SRV001',
-        'DESCRIPCION SERVICIO': 'CONSULTA ONCOLÓGICA',
-        'AGRUPADOR DE SERVICIOS': 'ONCOLOGÍA',
-        'COD. DIAGNOSTICO': 'C50',
-        'DESC. DIAGNOSTICO': 'TUMOR MALIGNO DE LA MAMA',
-        'dx': 'C50.9',
-        'CANTIDAD': 1,
-        'VALOR UNITARIO': 150000,
-        'VALOR TOTAL': 150000,
-        'TIPO CONTRATO': 'EVENTO',
-        'TUTELA-USUARIO': 'NO',
-        'CONTEO': 1,
-        'TUTELA': 'NO',
+        'TIPO_DOCUMENTO': 'CC',
+        'NUMERO_DOCUMENTO': '1010201010',
+        'PRIMER_APELLIDO': 'García',
+        'SEGUNDO_APELLIDO': 'López',
+        'PRIMER_NOMBRE': 'Juan',
+        'SEGUNDO_NOMBRE': 'Carlos',
+        'EDAD': 45,
+        'CURSO DE VIDA': 'Adultez',
+        'SEXO': 'M',
+        'NOMBRE_ESTABLECIMIENTO': 'HOSPITAL UNIVERSITARIO',
+        'EPC_CIUDAD': 'Bogotá',
+        'EPC_DEPARTAMENTO': 'Cundinamarca',
+        'REGIONAL_NORMALIZADA': 'Región Central',
+        'DISCAPACIDAD': 'No',
+        'LGTBIQ+': 'No',
+        'GRUPOS ETNICOS': 'No aplica',
+        'ESTADO': 'Vivo',
+        'NOVEDAD': 'Nuevo caso',
+        'Hipertensión (HTA)': '1',
+        'Diabetes Mellitus (DM)': '',
+        'VIH': '',
+        'SIFILIS': '',
+        'VARICELA': '1',
+        'Tuberculosis': '',
+        'Hiperlipidemia': '1',
+        'Asma': '',
+        'Enfermedad Renal Crónica (ERC)': '',
+        'Desnutricion': '',
+        'Obesidad': '1',
+        'Epilepsia': '',
+        'Hipotiroidismo': '',
+        'Enfermedad Pulmonar Obstructiva Crónica (EPOC)': '',
+        'Artritis': '1',
+        'Cáncer (CA)': '1',
+        'Tipo de cancer': 'Cáncer de mama',
+        'Patologías Cardíacas': '',
+        'TRASTORNO/SALUD MENTAL': '',
+        'GESTANTES': '',
+        'Mujeres con trastornos menstruales': '',
+        'Endometriosis': '',
+        'AMENORREA': '',
+        'Glaucoma': '',
+        'CONSUMO DE SPA': '',
+        'ENFERMEDAD HUERFANA': '',
+        'HIPERPLASIA DE PROSTATA': '',
+        'HEMOFILIA': '',
+        'OTROS TRASTORNOS VISUALES': '',
+        'NUMERO DE RIESGOS': 3,
+        'VALORACION MEDICINA GENERAL/FAMILIAR': '15/03/2025',
+        'CONSULTA JOVEN': '',
+        'CONSULTA ADULTEZ': '22/05/2025',
+        'CONSULTA VEJEZ': '',
+        'CITOLOGIA-TAMIZAJE CA DE CERVIX': '',
+        'RESULTADO CITOLOGIA': '6/10/2025',
+        'PLANIFICACION FAMILIAR': '',
+        'METODO': 'N/A',
+        'CONSULTA DE MAMA': '10/04/2025',
+        'MAMOGRAFIA': '20/06/2025',
+        'RESULTADO MAMOGRAFIA': 'Normal',
+        'TAMIZAJE CA PROSTATA': '',
+        'RESULTADO PROSTATA': '',
+        'TAMIZAJE CA DE COLON': '',
+        'RESULTADO COLON': '',
+        'CREATININA': '12/02/2025',
+        'GLICEMIA': '12/02/2025',
+        'HDL': '12/02/2025',
+        'COLESTEROL TOTAL': '12/02/2025',
+        'LDL': '12/02/2025',
+        'TRIGLICERIDOS': '12/02/2025',
+        'PEDIATRIA': '',
+        'MEDICINA INTERNA': '5/06/2025',
+        'EDUCACION': '22/05/2025',
+        'ODONTOLOGIA': '',
+        'TOMA VIH': '',
+        'TOMA SIFILIS': '',
+        'TOMA HEPATITIS B': '',
+        'PSICOLOGIA': '',
+        'NUTRICION': '8/07/2025',
+        'GINECOLOGIA': '',
+        'ORTOPEDIA': '',
+        'ENDOCRINOLOGIA': '',
+        'OFTALMOLOGIA': '',
+        'PSIQUIATRIA': '',
+        'TERAPIA FISICA': '',
+        'INTERVENCIONES': 'Quimioterapia, Radioterapia',
       },
       {
-        'RADICADO': '1234568',
-        'ID INTERNO': '002',
-        'NIT PRESTADOR': '900654321',
-        'RAZON SOCIAL': 'CLÍNICA SALUD',
-        'ESTADO': 'ACTIVO',
-        'NUMERO FACTURA': 'FAC-002',
-        'ESTADO AUDITORIA': 'PENDIENTE',
-        'CIUDAD PRESTADOR': 'CALI',
-        'PERIODO': '2025-02',
-        'TIPO DOCUMENTO': 'CC',
-        'NUMERO DOCUMENTO': '9876543210',
-        'NOMBRE_ESTABLECIMIENTO DEL PACIENTE': 'CENTRO MÉDICO SUR',
-        'EPC_CIUDAD DEL PACIENTE': 'CALI',
-        'EPC_DEPARTAMENTO DEL PACIENTE': 'VALLE DEL CAUCA',
-        'REGIONAL_NORMALIZADA DEL PACIENTE': 'REGIONAL SUROCCIDENTE',
-        'FECHA INGRESO': '2025-02-01',
-        'FECHA EGRESO': '2025-02-03',
-        'DIAS ESTANCIA': 2,
-        'TIPO SERVICIO': 'AMBULATORIO',
-        'CODIGO SERVICIO': 'SRV002',
-        'DESCRIPCION SERVICIO': 'QUIMIOTERAPIA',
-        'AGRUPADOR DE SERVICIOS': 'ONCOLOGÍA',
-        'COD. DIAGNOSTICO': 'C34',
-        'DESC. DIAGNOSTICO': 'TUMOR MALIGNO DEL BRONQUIO Y PULMÓN',
-        'dx': 'C34.1',
-        'CANTIDAD': 3,
-        'VALOR UNITARIO': 500000,
-        'VALOR TOTAL': 1500000,
-        'TIPO CONTRATO': 'CÁPITA',
-        'TUTELA-USUARIO': 'SI',
-        'CONTEO': 1,
-        'TUTELA': 'SI',
+        'TIPO_DOCUMENTO': 'CC',
+        'NUMERO_DOCUMENTO': '9876543210',
+        'PRIMER_APELLIDO': 'Rodríguez',
+        'SEGUNDO_APELLIDO': 'Martínez',
+        'PRIMER_NOMBRE': 'María',
+        'SEGUNDO_NOMBRE': 'Elena',
+        'EDAD': 58,
+        'CURSO DE VIDA': 'Vejez',
+        'SEXO': 'F',
+        'NOMBRE_ESTABLECIMIENTO': 'CLÍNICA SAN RAFAEL',
+        'EPC_CIUDAD': 'Medellín',
+        'EPC_DEPARTAMENTO': 'Antioquia',
+        'REGIONAL_NORMALIZADA': 'Región Noroeste',
+        'DISCAPACIDAD': 'Sí',
+        'LGTBIQ+': 'No',
+        'GRUPOS ETNICOS': 'Indígena',
+        'ESTADO': 'Fallecido',
+        'NOVEDAD': 'Seguimiento',
+        'Hipertensión (HTA)': '1',
+        'Diabetes Mellitus (DM)': '1',
+        'VIH': '',
+        'SIFILIS': '',
+        'VARICELA': '1',
+        'Tuberculosis': '',
+        'Hiperlipidemia': '',
+        'Asma': '',
+        'Enfermedad Renal Crónica (ERC)': '1',
+        'Desnutricion': '',
+        'Obesidad': '',
+        'Epilepsia': '',
+        'Hipotiroidismo': '1',
+        'Enfermedad Pulmonar Obstructiva Crónica (EPOC)': '1',
+        'Artritis': '',
+        'Cáncer (CA)': '1',
+        'Tipo de cancer': 'Cáncer de pulmón',
+        'Patologías Cardíacas': '1',
+        'TRASTORNO/SALUD MENTAL': '',
+        'GESTANTES': '',
+        'Mujeres con trastornos menstruales': '',
+        'Endometriosis': '',
+        'AMENORREA': '',
+        'Glaucoma': '1',
+        'CONSUMO DE SPA': '1',
+        'ENFERMEDAD HUERFANA': '',
+        'HIPERPLASIA DE PROSTATA': '',
+        'HEMOFILIA': '',
+        'OTROS TRASTORNOS VISUALES': '',
+        'NUMERO DE RIESGOS': 5,
+        'VALORACION MEDICINA GENERAL/FAMILIAR': '4/01/2025',
+        'CONSULTA JOVEN': '',
+        'CONSULTA ADULTEZ': '',
+        'CONSULTA VEJEZ': '18/03/2025',
+        'CITOLOGIA-TAMIZAJE CA DE CERVIX': '',
+        'RESULTADO CITOLOGIA': '4/09/2025',
+        'PLANIFICACION FAMILIAR': '',
+        'METODO': 'N/A',
+        'CONSULTA DE MAMA': '',
+        'MAMOGRAFIA': '',
+        'RESULTADO MAMOGRAFIA': '',
+        'TAMIZAJE CA PROSTATA': '15/05/2025',
+        'RESULTADO PROSTATA': '9/07/2025',
+        'TAMIZAJE CA DE COLON': '20/06/2025',
+        'RESULTADO COLON': '11/11/2025',
+        'CREATININA': '3/03/2025',
+        'GLICEMIA': '3/03/2025',
+        'HDL': '3/03/2025',
+        'COLESTEROL TOTAL': '3/03/2025',
+        'LDL': '3/03/2025',
+        'TRIGLICERIDOS': '3/03/2025',
+        'PEDIATRIA': '',
+        'MEDICINA INTERNA': '10/04/2025',
+        'EDUCACION': '22/05/2025',
+        'ODONTOLOGIA': '',
+        'TOMA VIH': '',
+        'TOMA SIFILIS': '',
+        'TOMA HEPATITIS B': '',
+        'PSICOLOGIA': '15/06/2025',
+        'NUTRICION': '8/07/2025',
+        'GINECOLOGIA': '',
+        'ORTOPEDIA': '',
+        'ENDOCRINOLOGIA': '20/08/2025',
+        'OFTALMOLOGIA': '25/09/2025',
+        'PSIQUIATRIA': '',
+        'TERAPIA FISICA': '',
+        'INTERVENCIONES': 'Manejo paliativo, Soporte respiratorio',
       },
     ];
 
@@ -467,7 +729,7 @@ export default function CancerRegistryPage() {
           <HiSearch />
           <input
             type="text"
-            placeholder="Buscar por diagnóstico, radicado, documento, razón social..."
+            placeholder="Buscar por documento, nombre, establecimiento..."
             value={quickSearch}
             onChange={(e) => setQuickSearch(e.target.value)}
           />
@@ -487,15 +749,15 @@ export default function CancerRegistryPage() {
       {showFilters && (
         <div className="filter-panel">
           <div className="filter-section">
-            <h4 className="filter-section-title">Diagnóstico</h4>
+            <h4 className="filter-section-title">Información Demográfica</h4>
             <div className="filter-grid">
               <div className="form-group">
-                <label>Cód. Diagnóstico</label>
+                <label>Número Documento</label>
                 <input
                   type="text"
-                  value={tempFilters.codDiagnostico ?? ''}
-                  onChange={(e) => setTempFilters({ ...tempFilters, codDiagnostico: e.target.value })}
-                  placeholder="Ej: C50"
+                  value={tempFilters.numeroDocumento ?? ''}
+                  onChange={(e) => setTempFilters({ ...tempFilters, numeroDocumento: e.target.value })}
+                  placeholder="Ej: 1234567890"
                 />
               </div>
             </div>
@@ -513,44 +775,11 @@ export default function CancerRegistryPage() {
                   placeholder="Departamento"
                 />
               </div>
-              <div className="form-group">
-                <label>Ciudad Prestador</label>
-                <input
-                  type="text"
-                  value={tempFilters.ciudadPrestador ?? ''}
-                  onChange={(e) => setTempFilters({ ...tempFilters, ciudadPrestador: e.target.value })}
-                  placeholder="Ciudad del prestador"
-                />
-              </div>
             </div>
           </div>
 
           <div className="filter-section">
-            <h4 className="filter-section-title">Servicio y Contrato</h4>
-            <div className="filter-grid">
-              <div className="form-group">
-                <label>Tipo Servicio</label>
-                <input
-                  type="text"
-                  value={tempFilters.tipoServicio ?? ''}
-                  onChange={(e) => setTempFilters({ ...tempFilters, tipoServicio: e.target.value })}
-                  placeholder="Tipo de servicio"
-                />
-              </div>
-              <div className="form-group">
-                <label>Tipo Contrato</label>
-                <input
-                  type="text"
-                  value={tempFilters.tipoContrato ?? ''}
-                  onChange={(e) => setTempFilters({ ...tempFilters, tipoContrato: e.target.value })}
-                  placeholder="Tipo de contrato"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="filter-section">
-            <h4 className="filter-section-title">Estado y Periodo</h4>
+            <h4 className="filter-section-title">Estado</h4>
             <div className="filter-grid">
               <div className="form-group">
                 <label>Estado</label>
@@ -559,30 +788,6 @@ export default function CancerRegistryPage() {
                   value={tempFilters.estado ?? ''}
                   onChange={(e) => setTempFilters({ ...tempFilters, estado: e.target.value })}
                   placeholder="Estado"
-                />
-              </div>
-              <div className="form-group">
-                <label>Periodo</label>
-                <input
-                  type="text"
-                  value={tempFilters.periodo ?? ''}
-                  onChange={(e) => setTempFilters({ ...tempFilters, periodo: e.target.value })}
-                  placeholder="Periodo"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="filter-section">
-            <h4 className="filter-section-title">Paciente</h4>
-            <div className="filter-grid">
-              <div className="form-group">
-                <label>Nº Documento</label>
-                <input
-                  type="text"
-                  value={tempFilters.numeroDocumento ?? ''}
-                  onChange={(e) => setTempFilters({ ...tempFilters, numeroDocumento: e.target.value })}
-                  placeholder="Número de documento"
                 />
               </div>
             </div>
@@ -746,7 +951,7 @@ export default function CancerRegistryPage() {
                 <div key={record.id} className="record-card">
                   <div className="card-header">
                     <div className="card-title-group">
-                      <h4 className="card-title">{record.radicado}</h4>
+                      <h4 className="card-title">{record.numeroDocumento} - {record.primerNombre} {record.primerApellido}</h4>
                       <span className={`status-badge status-${String(record.estado ?? '').toLowerCase()}`}>
                         {record.estado}
                       </span>
@@ -785,32 +990,32 @@ export default function CancerRegistryPage() {
                       <span className="field-value">{record.numeroDocumento}</span>
                     </div>
                     <div className="card-field">
-                      <span className="field-label">Institución</span>
-                      <span className="field-value">{record.razonSocial}</span>
+                      <span className="field-label">Nombre</span>
+                      <span className="field-value">{record.primerNombre} {record.segundoNombre} {record.primerApellido}</span>
                     </div>
                     <div className="card-field">
-                      <span className="field-label">Diagnóstico</span>
-                      <span className="field-value">{record.descDiagnostico}</span>
+                      <span className="field-label">Edad</span>
+                      <span className="field-value">{record.edad} años</span>
                     </div>
                     <div className="card-field">
-                      <span className="field-label">Cod. Dx</span>
-                      <span className="field-value">{record.codDiagnostico}</span>
+                      <span className="field-label">Sexo</span>
+                      <span className="field-value">{record.sexo}</span>
                     </div>
                     <div className="card-field">
-                      <span className="field-label">Tipo de Servicio</span>
-                      <span className="field-value">{record.tipoServicio}</span>
+                      <span className="field-label">Tipo Cáncer</span>
+                      <span className="field-value">{record.tipoDeCancer || 'No especificado'}</span>
                     </div>
                     <div className="card-field">
-                      <span className="field-label">Valor Total</span>
-                      <span className="field-value field-value-currency">{formatCurrency(record.valorTotal as number)}</span>
+                      <span className="field-label">Establecimiento</span>
+                      <span className="field-value">{record.nombreEstablecimiento}</span>
                     </div>
                     <div className="card-field">
                       <span className="field-label">Departamento</span>
                       <span className="field-value">{record.epcDepartamento}</span>
                     </div>
                     <div className="card-field">
-                      <span className="field-label">Período</span>
-                      <span className="field-value">{record.periodo}</span>
+                      <span className="field-label">Curso de Vida</span>
+                      <span className="field-value">{record.cursoDeVida}</span>
                     </div>
                   </div>
                 </div>
@@ -874,9 +1079,7 @@ export default function CancerRegistryPage() {
                 {allFields.map(f => (
                   <div key={f.key} className="detail-item">
                     <label>{f.label}</label>
-                    <p>{f.type === 'number' && (f.key === 'valorTotal' || f.key === 'valorUnitario')
-                      ? formatCurrency(selectedRecord[f.key] as number)
-                      : String(selectedRecord[f.key] ?? '')}</p>
+                    <p>{String(selectedRecord[f.key] ?? '')}</p>
                   </div>
                 ))}
               </div>

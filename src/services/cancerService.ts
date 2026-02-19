@@ -17,11 +17,11 @@ import {
   type DocumentSnapshot,
   type Timestamp,
   type QueryConstraint,
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
-import type { CancerRecord } from '../types';
+} from "firebase/firestore";
+import { db } from "../config/firebase";
+import type { CancerRecord } from "../types";
 
-const COLLECTION = 'cancerRecords';
+const COLLECTION = "cancerRecords";
 
 // ==================== IN-MEMORY CACHE ====================
 interface CacheEntry<T> {
@@ -34,7 +34,9 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 let allRecordsCache: CacheEntry<CancerRecord[]> | null = null;
 let countCache: CacheEntry<Record<string, number>> = { data: {}, timestamp: 0 };
 
-const isCacheValid = <T>(cache: CacheEntry<T> | null): cache is CacheEntry<T> => {
+const isCacheValid = <T>(
+  cache: CacheEntry<T> | null,
+): cache is CacheEntry<T> => {
   return cache !== null && Date.now() - cache.timestamp < CACHE_TTL;
 };
 
@@ -52,40 +54,108 @@ const toDate = (ts: Timestamp | Date | undefined): Date => {
 
 const docToRecord = (d: DocumentSnapshot): CancerRecord => {
   const data = d.data()!;
+
+  // Helper: convert any value to string (handles booleans from old data, dates, numbers)
+  const toStr = (val: unknown): string => {
+    if (val === undefined || val === null) return "";
+    if (typeof val === "boolean") return val ? "1" : "";
+    if (typeof val === "number") return String(val);
+    return String(val);
+  };
+
   return {
     id: d.id,
-    radicado: data.radicado ?? '',
-    idInterno: data.idInterno ?? '',
-    nitPrestador: data.nitPrestador ?? '',
-    razonSocial: data.razonSocial ?? '',
-    estado: data.estado ?? '',
-    numeroFactura: data.numeroFactura ?? '',
-    estadoAuditoria: data.estadoAuditoria ?? '',
-    ciudadPrestador: data.ciudadPrestador ?? '',
-    periodo: data.periodo ?? '',
-    tipoDocumento: data.tipoDocumento ?? '',
-    numeroDocumento: data.numeroDocumento ?? '',
-    nombreEstablecimiento: data.nombreEstablecimiento ?? '',
-    epcCiudad: data.epcCiudad ?? '',
-    epcDepartamento: data.epcDepartamento ?? '',
-    regionalNormalizada: data.regionalNormalizada ?? '',
-    fechaIngreso: data.fechaIngreso ?? '',
-    fechaEgreso: data.fechaEgreso ?? '',
-    diasEstancia: data.diasEstancia ?? 0,
-    tipoServicio: data.tipoServicio ?? '',
-    codigoServicio: data.codigoServicio ?? '',
-    descripcionServicio: data.descripcionServicio ?? '',
-    agrupadorServicios: data.agrupadorServicios ?? '',
-    codDiagnostico: data.codDiagnostico ?? '',
-    descDiagnostico: data.descDiagnostico ?? '',
-    dx: data.dx ?? '',
-    cantidad: data.cantidad ?? 0,
-    valorUnitario: data.valorUnitario ?? 0,
-    valorTotal: data.valorTotal ?? 0,
-    tipoContrato: data.tipoContrato ?? '',
-    tutelaUsuario: data.tutelaUsuario ?? '',
-    conteo: data.conteo ?? 0,
-    tutela: data.tutela ?? '',
+    tipoDocumento: toStr(data.tipoDocumento),
+    numeroDocumento: toStr(data.numeroDocumento),
+    primerApellido: toStr(data.primerApellido),
+    segundoApellido: toStr(data.segundoApellido),
+    primerNombre: toStr(data.primerNombre),
+    segundoNombre: toStr(data.segundoNombre),
+    edad: data.edad ?? 0,
+    cursoDeVida: toStr(data.cursoDeVida),
+    sexo: toStr(data.sexo),
+    nombreEstablecimiento: toStr(data.nombreEstablecimiento),
+    epcCiudad: toStr(data.epcCiudad),
+    epcDepartamento: toStr(data.epcDepartamento),
+    regionalNormalizada: toStr(data.regionalNormalizada),
+    discapacidad: toStr(data.discapacidad),
+    lgtbiq: toStr(data.lgtbiq),
+    gruposEtnicos: toStr(data.gruposEtnicos),
+    estado: toStr(data.estado),
+    novedad: toStr(data.novedad),
+    hipertensionHTA: toStr(data.hipertensionHTA),
+    diabetesMellitusDM: toStr(data.diabetesMellitusDM),
+    vih: toStr(data.vih),
+    sifilis: toStr(data.sifilis),
+    varicela: toStr(data.varicela),
+    tuberculosis: toStr(data.tuberculosis),
+    hiperlipidemia: toStr(data.hiperlipidemia),
+    asma: toStr(data.asma),
+    enfermedadRenalCronicaERC: toStr(data.enfermedadRenalCronicaERC),
+    desnutricion: toStr(data.desnutricion),
+    obesidad: toStr(data.obesidad),
+    epilepsia: toStr(data.epilepsia),
+    hipotiroidismo: toStr(data.hipotiroidismo),
+    enfermedadPulmonarObstructivaCronicaEPOC: toStr(
+      data.enfermedadPulmonarObstructivaCronicaEPOC,
+    ),
+    artritis: toStr(data.artritis),
+    cancerCA: toStr(data.cancerCA),
+    tipoDeCancer: toStr(data.tipoDeCancer),
+    patologiasCardiacas: toStr(data.patologiasCardiacas),
+    trastornoSaludMental: toStr(data.trastornoSaludMental),
+    gestantes: toStr(data.gestantes),
+    mujeresConTrastornosMenstruales: toStr(
+      data.mujeresConTrastornosMenstruales,
+    ),
+    endometriosis: toStr(data.endometriosis),
+    amenorrea: toStr(data.amenorrea),
+    glaucoma: toStr(data.glaucoma),
+    consumoDeSPA: toStr(data.consumoDeSPA),
+    enfermedadHuerfana: toStr(data.enfermedadHuerfana),
+    hiperplasiaDeProstata: toStr(data.hiperplasiaDeProstata),
+    hemofilia: toStr(data.hemofilia),
+    otrosTrastornosVisuales: toStr(data.otrosTrastornosVisuales),
+    numeroDERiesgos: toStr(data.numeroDERiesgos),
+    valoracionMedicinaGeneralFamiliar: toStr(
+      data.valoracionMedicinaGeneralFamiliar,
+    ),
+    consultaJoven: toStr(data.consultaJoven),
+    consultaAdultez: toStr(data.consultaAdultez),
+    consultaVejez: toStr(data.consultaVejez),
+    citologiaTamizajeCACervix: toStr(data.citologiaTamizajeCACervix),
+    resultadoCitologia: toStr(data.resultadoCitologia),
+    planificacionFamiliar: toStr(data.planificacionFamiliar),
+    metodo: toStr(data.metodo),
+    consultaDeMama: toStr(data.consultaDeMama),
+    mamografia: toStr(data.mamografia),
+    resultadoMamografia: toStr(data.resultadoMamografia),
+    tamizajeCAProstata: toStr(data.tamizajeCAProstata),
+    resultadoProstata: toStr(data.resultadoProstata),
+    tamizajeCADeColon: toStr(data.tamizajeCADeColon),
+    resultadoColon: toStr(data.resultadoColon),
+    creatinina: toStr(data.creatinina),
+    glicemia: toStr(data.glicemia),
+    hdl: toStr(data.hdl),
+    colesterolTotal: toStr(data.colesterolTotal),
+    ldl: toStr(data.ldl),
+    trigliceridos: toStr(data.trigliceridos),
+    pediatria: toStr(data.pediatria),
+    medicinaInterna: toStr(data.medicinaInterna),
+    educacion: toStr(data.educacion),
+    odontologia: toStr(data.odontologia),
+    tomaVIH: toStr(data.tomaVIH),
+    tomaSifilis: toStr(data.tomaSifilis),
+    tomaHepatitisB: toStr(data.tomaHepatitisB),
+    psicologia: toStr(data.psicologia),
+    nutricion: toStr(data.nutricion),
+    ginecologia: toStr(data.ginecologia),
+    ortopedia: toStr(data.ortopedia),
+    endocrinologia: toStr(data.endocrinologia),
+    oftalmologia: toStr(data.oftalmologia),
+    psiquiatria: toStr(data.psiquiatria),
+    terapiaFisica: toStr(data.terapiaFisica),
+    intervenciones: toStr(data.intervenciones),
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   };
@@ -93,15 +163,8 @@ const docToRecord = (d: DocumentSnapshot): CancerRecord => {
 
 // ==================== FILTERS ====================
 export interface CancerFilters {
-  descDiagnostico?: string;
-  codDiagnostico?: string;
   epcDepartamento?: string;
-  ciudadPrestador?: string;
-  tipoServicio?: string;
-  tipoContrato?: string;
   estado?: string;
-  periodo?: string;
-  razonSocial?: string;
   numeroDocumento?: string;
 }
 
@@ -117,39 +180,23 @@ export const getCancerRecordsPaginated = async (
   pageSize: number = 50,
   lastDocument: DocumentSnapshot | null = null,
   filters: CancerFilters = {},
-  skipCount: boolean = false
+  skipCount: boolean = false,
 ): Promise<PaginatedResult> => {
   const constraints: QueryConstraint[] = [];
 
   // Apply filters — Firestore only allows equality filters combined with orderBy
-  // For text search we use >= and <= for prefix matching on the indexed field
-  if (filters.codDiagnostico) {
-    constraints.push(where('codDiagnostico', '==', filters.codDiagnostico));
-  }
   if (filters.epcDepartamento) {
-    constraints.push(where('epcDepartamento', '==', filters.epcDepartamento));
-  }
-  if (filters.tipoServicio) {
-    constraints.push(where('tipoServicio', '==', filters.tipoServicio));
-  }
-  if (filters.tipoContrato) {
-    constraints.push(where('tipoContrato', '==', filters.tipoContrato));
+    constraints.push(where("epcDepartamento", "==", filters.epcDepartamento));
   }
   if (filters.estado) {
-    constraints.push(where('estado', '==', filters.estado));
-  }
-  if (filters.periodo) {
-    constraints.push(where('periodo', '==', filters.periodo));
-  }
-  if (filters.ciudadPrestador) {
-    constraints.push(where('ciudadPrestador', '==', filters.ciudadPrestador));
+    constraints.push(where("estado", "==", filters.estado));
   }
   if (filters.numeroDocumento) {
-    constraints.push(where('numeroDocumento', '==', filters.numeroDocumento));
+    constraints.push(where("numeroDocumento", "==", filters.numeroDocumento));
   }
 
   // Order and pagination
-  constraints.push(orderBy('createdAt', 'desc'));
+  constraints.push(orderBy("createdAt", "desc"));
   if (lastDocument) {
     constraints.push(startAfter(lastDocument));
   }
@@ -167,16 +214,21 @@ export const getCancerRecordsPaginated = async (
       totalCount = countCache.data[filterKey];
     } else {
       const countQueryConstraints: QueryConstraint[] = [];
-      if (filters.codDiagnostico) countQueryConstraints.push(where('codDiagnostico', '==', filters.codDiagnostico));
-      if (filters.epcDepartamento) countQueryConstraints.push(where('epcDepartamento', '==', filters.epcDepartamento));
-      if (filters.tipoServicio) countQueryConstraints.push(where('tipoServicio', '==', filters.tipoServicio));
-      if (filters.tipoContrato) countQueryConstraints.push(where('tipoContrato', '==', filters.tipoContrato));
-      if (filters.estado) countQueryConstraints.push(where('estado', '==', filters.estado));
-      if (filters.periodo) countQueryConstraints.push(where('periodo', '==', filters.periodo));
-      if (filters.ciudadPrestador) countQueryConstraints.push(where('ciudadPrestador', '==', filters.ciudadPrestador));
-      if (filters.numeroDocumento) countQueryConstraints.push(where('numeroDocumento', '==', filters.numeroDocumento));
+      if (filters.epcDepartamento)
+        countQueryConstraints.push(
+          where("epcDepartamento", "==", filters.epcDepartamento),
+        );
+      if (filters.estado)
+        countQueryConstraints.push(where("estado", "==", filters.estado));
+      if (filters.numeroDocumento)
+        countQueryConstraints.push(
+          where("numeroDocumento", "==", filters.numeroDocumento),
+        );
 
-      const countQuery = query(collection(db, COLLECTION), ...countQueryConstraints);
+      const countQuery = query(
+        collection(db, COLLECTION),
+        ...countQueryConstraints,
+      );
       const countSnap = await getCountFromServer(countQuery);
       totalCount = countSnap.data().count;
       countCache = {
@@ -198,7 +250,9 @@ export const getCancerRecordsPaginated = async (
 };
 
 // ==================== SINGLE READ ====================
-export const getCancerRecordById = async (id: string): Promise<CancerRecord | null> => {
+export const getCancerRecordById = async (
+  id: string,
+): Promise<CancerRecord | null> => {
   const snap = await getDoc(doc(db, COLLECTION, id));
   if (!snap.exists()) return null;
   return docToRecord(snap);
@@ -206,7 +260,7 @@ export const getCancerRecordById = async (id: string): Promise<CancerRecord | nu
 
 // ==================== CREATE ====================
 export const createCancerRecord = async (
-  data: Omit<CancerRecord, 'id' | 'createdAt' | 'updatedAt'>
+  data: Omit<CancerRecord, "id" | "createdAt" | "updatedAt">,
 ): Promise<string> => {
   const ref = doc(collection(db, COLLECTION));
   await setDoc(ref, {
@@ -221,10 +275,11 @@ export const createCancerRecord = async (
 // ==================== UPDATE ====================
 export const updateCancerRecord = async (
   id: string,
-  data: Partial<CancerRecord>
+  data: Partial<CancerRecord>,
 ): Promise<void> => {
   const { id: _id, createdAt: _ca, ...rest } = data as Record<string, unknown>;
-  void _id; void _ca;
+  void _id;
+  void _ca;
   await updateDoc(doc(db, COLLECTION, id), {
     ...rest,
     updatedAt: serverTimestamp(),
@@ -241,8 +296,8 @@ export const deleteCancerRecord = async (id: string): Promise<void> => {
 // ==================== BATCH IMPORT (for Excel) ====================
 // Firestore batch limit = 500, so we chunk the data
 export const importCancerRecords = async (
-  records: Omit<CancerRecord, 'id' | 'createdAt' | 'updatedAt'>[],
-  onProgress?: (completed: number, total: number) => void
+  records: Omit<CancerRecord, "id" | "createdAt" | "updatedAt">[],
+  onProgress?: (completed: number, total: number) => void,
 ): Promise<number> => {
   const BATCH_SIZE = 400; // Stay under the 500 limit, accounting for overhead
   let imported = 0;
@@ -276,12 +331,12 @@ export const importCancerRecords = async (
  */
 export const computeDistinctValues = (
   records: CancerRecord[],
-  field: keyof CancerRecord
+  field: keyof CancerRecord,
 ): string[] => {
   const values = new Set<string>();
-  records.forEach(r => {
+  records.forEach((r) => {
     const val = r[field];
-    if (val != null && typeof val === 'string' && val.trim()) {
+    if (val != null && typeof val === "string" && val.trim()) {
       values.add(val.trim());
     }
   });
@@ -294,29 +349,33 @@ export const computeDistinctValues = (
  */
 export const computeAllDistinctValues = (
   records: CancerRecord[],
-  fields: (keyof CancerRecord)[]
+  fields: (keyof CancerRecord)[],
 ): Record<string, string[]> => {
   const setsMap: Record<string, Set<string>> = {};
-  fields.forEach(f => { setsMap[f] = new Set(); });
+  fields.forEach((f) => {
+    setsMap[f] = new Set();
+  });
 
-  records.forEach(r => {
-    fields.forEach(f => {
+  records.forEach((r) => {
+    fields.forEach((f) => {
       const val = r[f];
-      if (val != null && typeof val === 'string' && val.trim()) {
+      if (val != null && typeof val === "string" && val.trim()) {
         setsMap[f].add(val.trim());
       }
     });
   });
 
   const result: Record<string, string[]> = {};
-  fields.forEach(f => {
+  fields.forEach((f) => {
     result[f] = Array.from(setsMap[f]).sort();
   });
   return result;
 };
 
 // ==================== GET ALL RECORDS (for analytics, with cache) ====================
-export const getAllCancerRecords = async (forceRefresh = false): Promise<CancerRecord[]> => {
+export const getAllCancerRecords = async (
+  forceRefresh = false,
+): Promise<CancerRecord[]> => {
   if (!forceRefresh && isCacheValid(allRecordsCache)) {
     return allRecordsCache!.data;
   }
@@ -328,7 +387,7 @@ export const getAllCancerRecords = async (forceRefresh = false): Promise<CancerR
 
 // ==================== DELETE ALL (for reimport) ====================
 export const deleteAllCancerRecords = async (
-  onProgress?: (deleted: number) => void
+  onProgress?: (deleted: number) => void,
 ): Promise<number> => {
   const BATCH_SIZE = 400;
   let totalDeleted = 0;
@@ -344,7 +403,7 @@ export const deleteAllCancerRecords = async (
     }
 
     const batch = writeBatch(db);
-    snap.docs.forEach(d => batch.delete(d.ref));
+    snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
 
     totalDeleted += snap.docs.length;

@@ -33,10 +33,10 @@ export default function ImportExcelModal({ isOpen, onClose, onImportComplete }: 
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true, dateNF: 'dd/mm/yyyy' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '', raw: false });
 
         setTotalRows(jsonData.length);
         setPreview(jsonData.slice(0, 5)); // Preview first 5 rows
@@ -58,30 +58,49 @@ export default function ImportExcelModal({ isOpen, onClose, onImportComplete }: 
   const mapRowToRecord = (row: Record<string, unknown>): Omit<CancerRecord, 'id' | 'createdAt' | 'updatedAt'> => {
     const record: Record<string, unknown> = {};
 
-    // Initialize all fields with defaults
+    // Initialize all fields with empty string defaults
     const defaults: Omit<CancerRecord, 'id' | 'createdAt' | 'updatedAt'> = {
-      radicado: '', idInterno: '', nitPrestador: '', razonSocial: '',
-      estado: '', numeroFactura: '', estadoAuditoria: '', ciudadPrestador: '',
-      periodo: '', tipoDocumento: '', numeroDocumento: '', nombreEstablecimiento: '',
-      epcCiudad: '', epcDepartamento: '', regionalNormalizada: '',
-      fechaIngreso: '', fechaEgreso: '', diasEstancia: 0,
-      tipoServicio: '', codigoServicio: '', descripcionServicio: '',
-      agrupadorServicios: '', codDiagnostico: '', descDiagnostico: '',
-      dx: '', cantidad: 0, valorUnitario: 0, valorTotal: 0,
-      tipoContrato: '', tutelaUsuario: '', conteo: 0, tutela: '',
+      tipoDocumento: '', numeroDocumento: '', primerApellido: '', segundoApellido: '',
+      primerNombre: '', segundoNombre: '', edad: 0, cursoDeVida: '', sexo: '',
+      nombreEstablecimiento: '', epcCiudad: '', epcDepartamento: '', regionalNormalizada: '',
+      discapacidad: '', lgtbiq: '', gruposEtnicos: '', estado: '', novedad: '',
+      hipertensionHTA: '', diabetesMellitusDM: '', vih: '', sifilis: '',
+      varicela: '', tuberculosis: '', hiperlipidemia: '', asma: '',
+      enfermedadRenalCronicaERC: '', desnutricion: '', obesidad: '', epilepsia: '',
+      hipotiroidismo: '', enfermedadPulmonarObstructivaCronicaEPOC: '', artritis: '',
+      cancerCA: '', tipoDeCancer: '', patologiasCardiacas: '', trastornoSaludMental: '',
+      gestantes: '', mujeresConTrastornosMenstruales: '', endometriosis: '',
+      amenorrea: '', glaucoma: '', consumoDeSPA: '', enfermedadHuerfana: '',
+      hiperplasiaDeProstata: '', hemofilia: '', otrosTrastornosVisuales: '',
+      numeroDERiesgos: '',
+      valoracionMedicinaGeneralFamiliar: '', consultaJoven: '',
+      consultaAdultez: '', consultaVejez: '', citologiaTamizajeCACervix: '',
+      resultadoCitologia: '', planificacionFamiliar: '', metodo: '', consultaDeMama: '',
+      mamografia: '', resultadoMamografia: '', tamizajeCAProstata: '', resultadoProstata: '',
+      tamizajeCADeColon: '', resultadoColon: '',
+      creatinina: '', glicemia: '', hdl: '', colesterolTotal: '', ldl: '', trigliceridos: '',
+      pediatria: '', medicinaInterna: '', educacion: '', odontologia: '',
+      tomaVIH: '', tomaSifilis: '', tomaHepatitisB: '', psicologia: '',
+      nutricion: '', ginecologia: '', ortopedia: '', endocrinologia: '',
+      oftalmologia: '', psiquiatria: '', terapiaFisica: '', intervenciones: '',
     };
 
     Object.assign(record, defaults);
 
-    // Map Excel headers to our fields
+    // Map Excel headers to our fields — store EVERYTHING as-is (string)
     for (const [excelHeader, fieldName] of Object.entries(EXCEL_TO_FIELD_MAP)) {
       if (row[excelHeader] !== undefined && row[excelHeader] !== null) {
         const value = row[excelHeader];
-        // Convert number fields
-        if (['diasEstancia', 'cantidad', 'valorUnitario', 'valorTotal', 'conteo'].includes(fieldName)) {
-          record[fieldName] = typeof value === 'number' ? value : parseFloat(String(value)) || 0;
+        const strValue = String(value).trim();
+        
+        if (!strValue) continue;
+        
+        // Only edad needs to be a number
+        if (fieldName === 'edad') {
+          record[fieldName] = typeof value === 'number' ? value : parseFloat(strValue) || 0;
         } else {
-          record[fieldName] = String(value).trim();
+          // Everything else is stored as string — dates, "1", text, etc.
+          record[fieldName] = strValue;
         }
       }
     }
@@ -100,10 +119,10 @@ export default function ImportExcelModal({ isOpen, onClose, onImportComplete }: 
       reader.onload = async (e) => {
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
+          const workbook = XLSX.read(data, { type: 'array', cellDates: true, dateNF: 'dd/mm/yyyy' });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+          const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '', raw: false });
 
           const records = jsonData.map(mapRowToRecord);
 
