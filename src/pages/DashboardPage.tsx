@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getAllCancerRecords, computeAllDistinctValues } from '../services/cancerService';
-import type { CancerRecord } from '../types';
 import {
   HiDocumentReport, HiLocationMarker, HiCurrencyDollar, HiUserGroup,
   HiFilter, HiX, HiRefresh, HiTrendingUp, HiCalendar,
@@ -79,7 +78,8 @@ const emptyFilters: DashboardFilters = {
 export default function DashboardPage() {
   const { user } = useAuth();
 
-  const [allRecords, setAllRecords] = useState<CancerRecord[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [allRecords, setAllRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState<DashboardFilters>(emptyFilters);
@@ -115,11 +115,17 @@ export default function DashboardPage() {
       setAllRecords(records);
 
       const distinct = computeAllDistinctValues(records, [
-        'epcDepartamento', 'tipoServicio', 'tipoContrato', 'estado',
-        'periodo', 'codDiagnostico', 'estadoAuditoria', 'ciudadPrestador',
-        'tipoDocumento', 'epcCiudad', 'razonSocial', 'codigoServicio',
+        'epcDepartamento', 'tipoDocumento', 'epcCiudad', 'estado',
         'regionalNormalizada',
-      ]);
+      ] as any);
+
+      // Compute distinct values for extra dashboard fields not in CancerRecord type
+      const extraFields = ['tipoServicio', 'tipoContrato', 'periodo', 'codDiagnostico', 'estadoAuditoria', 'ciudadPrestador', 'razonSocial', 'codigoServicio'];
+      extraFields.forEach(f => {
+        const s = new Set<string>();
+        records.forEach((r: any) => { const v = r[f]; if (v != null && typeof v === 'string' && v.trim()) s.add(v.trim()); });
+        distinct[f] = Array.from(s).sort();
+      });
 
       setDepartamentos(distinct['epcDepartamento'] ?? []);
       setTiposServicio(distinct['tipoServicio'] ?? []);
