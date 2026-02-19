@@ -143,6 +143,37 @@ export const DEFAULT_PERMISSIONS: Permission[] = [
     description: "Importar registros desde Excel",
     module: "cancer",
   },
+  // Arthritis Registry
+  {
+    id: "arthritis.view",
+    name: "Ver Registros Artritis",
+    description: "Ver registros de artritis",
+    module: "arthritis",
+  },
+  {
+    id: "arthritis.create",
+    name: "Crear Registros Artritis",
+    description: "Crear registros de artritis",
+    module: "arthritis",
+  },
+  {
+    id: "arthritis.edit",
+    name: "Editar Registros Artritis",
+    description: "Editar registros de artritis",
+    module: "arthritis",
+  },
+  {
+    id: "arthritis.delete",
+    name: "Eliminar Registros Artritis",
+    description: "Eliminar registros de artritis",
+    module: "arthritis",
+  },
+  {
+    id: "arthritis.import",
+    name: "Importar Excel Artritis",
+    description: "Importar registros de artritis desde Excel",
+    module: "arthritis",
+  },
   // Activity Log
   {
     id: "activity.view",
@@ -178,6 +209,11 @@ export const DEFAULT_ROLES: Omit<Role, "id" | "createdAt" | "updatedAt">[] = [
       "cancer.edit",
       "cancer.delete",
       "cancer.import",
+      "arthritis.view",
+      "arthritis.create",
+      "arthritis.edit",
+      "arthritis.delete",
+      "arthritis.import",
       "activity.view",
     ],
   },
@@ -185,7 +221,12 @@ export const DEFAULT_ROLES: Omit<Role, "id" | "createdAt" | "updatedAt">[] = [
     name: "user",
     displayName: "Usuario",
     description: "Usuario básico del sistema",
-    permissions: ["dashboard.view", "profiles.view", "cancer.view"],
+    permissions: [
+      "dashboard.view",
+      "profiles.view",
+      "cancer.view",
+      "arthritis.view",
+    ],
   },
 ];
 

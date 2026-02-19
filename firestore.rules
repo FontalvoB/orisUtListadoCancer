@@ -110,6 +110,24 @@ service cloud.firestore {
         getUserProfile().roleName in ['admin', 'superadmin', 'editor'];
     }
 
+    // ===================== ARTHRITIS RECORDS COLLECTION =====================
+    match /arthritisRecords/{recordId} {
+      // Any authenticated user can read arthritis records
+      allow read: if isAuthenticated();
+
+      // Admin, superadmin, and editor can create records (including imports)
+      allow create: if isAuthenticated() &&
+        getUserProfile().roleName in ['admin', 'superadmin', 'editor'];
+
+      // Admin, superadmin, and editor can update records
+      allow update: if isAuthenticated() &&
+        getUserProfile().roleName in ['admin', 'superadmin', 'editor'];
+
+      // Admin, superadmin, and editor can delete records
+      allow delete: if isAuthenticated() &&
+        getUserProfile().roleName in ['admin', 'superadmin', 'editor'];
+    }
+
     // ===================== ACTIVITY LOGS COLLECTION =====================
     match /activityLogs/{logId} {
       // Any authenticated user can read activity logs (permission enforced at app level)

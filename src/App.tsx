@@ -10,6 +10,7 @@ import UsersPage from './pages/UsersPage';
 import RolesPage from './pages/RolesPage';
 import ProfilePage from './pages/ProfilePage';
 import CancerRegistryPage from './pages/CancerRegistryPage';
+import ArthritisRegistryPage from './pages/ArthritisRegistryPage';
 import ActivityLogPage from './pages/ActivityLogPage';
 import './App.css';
 
@@ -64,6 +65,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['superadmin', 'admin', 'editor', 'user']}>
                   <CancerRegistryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="arthritis"
+              element={
+                <ProtectedRoute allowedRoles={['superadmin', 'admin', 'editor', 'user']}>
+                  <ArthritisRegistryPage />
                 </ProtectedRoute>
               }
             />

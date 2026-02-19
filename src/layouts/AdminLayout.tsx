@@ -53,6 +53,9 @@ export default function AdminLayout() {
           <NavLink to="/admin/cancer" onClick={() => setSidebarOpen(false)}>
             <HiOutlineDocumentReport size={16} /> Registro Cancer
           </NavLink>
+          <NavLink to="/admin/arthritis" onClick={() => setSidebarOpen(false)}>
+            <HiOutlineDocumentReport size={16} /> Registro Artritis
+          </NavLink>
 
           {isAdmin() && (
             <>
