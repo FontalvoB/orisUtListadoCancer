@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getAllCancerRecords, computeAllDistinctValues } from '../services/cancerService';
+import { getAllArthritisRecords } from '../services/arthritisService';
 import {
   HiDocumentReport, HiLocationMarker, HiCurrencyDollar, HiUserGroup,
   HiFilter, HiX, HiRefresh, HiTrendingUp, HiCalendar,
@@ -14,20 +15,6 @@ import ColombiaMap from '../components/ColombiaMap';
 
 const CHART_COLORS = ['#0d9488', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#22c55e', '#ec4899', '#f97316', '#6366f1'];
 
-const MONTH_ORDER: Record<string, number> = {
-  ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6,
-  JULIO: 7, AGOSTO: 8, SEPTIEMBRE: 9, OCTUBRE: 10, NOVIEMBRE: 11, DICIEMBRE: 12,
-};
-
-function parsePeriodo(periodo: string): number {
-  const parts = periodo.split('/');
-  if (parts.length === 2) {
-    const year = parseInt(parts[0], 10) || 0;
-    const month = MONTH_ORDER[parts[1]?.toUpperCase()] || 0;
-    return year * 100 + month;
-  }
-  return 0;
-}
 
 const TOOLTIP_STYLE = {
   borderRadius: 10,
@@ -39,7 +26,10 @@ const TOOLTIP_STYLE = {
   lineHeight: '1.5',
 };
 
+type RecordType = 'cancer' | 'arthritis' | 'all';
+
 interface DashboardFilters {
+  tipoRegistro: RecordType;
   epcDepartamento: string;
   tipoServicio: string;
   tipoContrato: string;
@@ -58,6 +48,7 @@ interface DashboardFilters {
 }
 
 const emptyFilters: DashboardFilters = {
+  tipoRegistro: 'all',
   epcDepartamento: '',
   tipoServicio: '',
   tipoContrato: '',
@@ -79,18 +70,15 @@ export default function DashboardPage() {
   const { user } = useAuth();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [allRecords, setAllRecords] = useState<any[]>([]);
+  const [allCancerRecords, setAllCancerRecords] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [allArthritisRecords, setAllArthritisRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState<DashboardFilters>(emptyFilters);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
 
-  // State for the new drill-down charts
-  const [selectedDeptDx, setSelectedDeptDx] = useState<string | null>(null);
-  const [selectedProcedure, setSelectedProcedure] = useState<string | null>(null);
-  const [deptDxPage, setDeptDxPage] = useState(0);
   const [hoveredRegionIdx, setHoveredRegionIdx] = useState<number | null>(null);
-  const DEPT_PAGE_SIZE = 10;
 
   const [departamentos, setDepartamentos] = useState<string[]>([]);
   const [tiposServicio, setTiposServicio] = useState<string[]>([]);
@@ -110,11 +98,18 @@ export default function DashboardPage() {
     setLoading(true);
     setError('');
     try {
-      // Single Firestore read — all distinct values computed in memory
-      const records = await getAllCancerRecords(forceRefresh);
-      setAllRecords(records);
+      // Load both cancer and arthritis records
+      const [cancerRecords, arthritisRecords] = await Promise.all([
+        getAllCancerRecords(forceRefresh),
+        getAllArthritisRecords(forceRefresh),
+      ]);
+      setAllCancerRecords(cancerRecords);
+      setAllArthritisRecords(arthritisRecords);
 
-      const distinct = computeAllDistinctValues(records, [
+      // Combine all records for distinct values computation
+      const allRecords = [...cancerRecords, ...arthritisRecords];
+
+      const distinct = computeAllDistinctValues(cancerRecords, [
         'epcDepartamento', 'tipoDocumento', 'epcCiudad', 'estado',
         'regionalNormalizada',
       ] as any);
@@ -123,7 +118,7 @@ export default function DashboardPage() {
       const extraFields = ['tipoServicio', 'tipoContrato', 'periodo', 'codDiagnostico', 'estadoAuditoria', 'ciudadPrestador', 'razonSocial', 'codigoServicio'];
       extraFields.forEach(f => {
         const s = new Set<string>();
-        records.forEach((r: any) => { const v = r[f]; if (v != null && typeof v === 'string' && v.trim()) s.add(v.trim()); });
+        allRecords.forEach((r: any) => { const v = r[f]; if (v != null && typeof v === 'string' && v.trim()) s.add(v.trim()); });
         distinct[f] = Array.from(s).sort();
       });
 
@@ -149,6 +144,17 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Get records based on tipoRegistro filter
+  const allRecords = useMemo(() => {
+    if (filters.tipoRegistro === 'cancer') {
+      return allCancerRecords;
+    } else if (filters.tipoRegistro === 'arthritis') {
+      return allArthritisRecords;
+    } else {
+      return [...allCancerRecords, ...allArthritisRecords];
+    }
+  }, [filters.tipoRegistro, allCancerRecords, allArthritisRecords]);
+
   const filteredRecords = useMemo(() => {
     return allRecords.filter(r => {
       if (filters.epcDepartamento && r.epcDepartamento !== filters.epcDepartamento) return false;
@@ -173,27 +179,146 @@ export default function DashboardPage() {
   // KPIs
   const kpis = useMemo(() => {
     const totalRegistros = filteredRecords.length;
-    const valorTotal = filteredRecords.reduce((sum, r) => sum + (r.valorTotal || 0), 0);
     const departamentosUnicos = new Set(filteredRecords.map(r => r.epcDepartamento).filter(Boolean)).size;
-    const diagnosticosUnicos = new Set(filteredRecords.map(r => r.codDiagnostico).filter(Boolean)).size;
     const pacientesUnicos = new Set(filteredRecords.map(r => r.numeroDocumento).filter(Boolean)).size;
-    const promedioEstancia = totalRegistros > 0
-      ? filteredRecords.reduce((sum, r) => sum + (r.diasEstancia || 0), 0) / totalRegistros
+    const ciudadesUnicas = new Set(filteredRecords.map(r => r.epcCiudad).filter(Boolean)).size;
+    const edadPromedio = totalRegistros > 0
+      ? filteredRecords.reduce((sum, r) => sum + (r.edad || 0), 0) / totalRegistros
       : 0;
-    return { totalRegistros, valorTotal, departamentosUnicos, diagnosticosUnicos, pacientesUnicos, promedioEstancia };
+    const conDiscapacidad = filteredRecords.filter(r => {
+      const disc = (r.discapacidad || '').trim().toLowerCase();
+      return disc && disc !== 'no' && disc !== 'no especificado' && disc !== '';
+    }).length;
+    return { totalRegistros, departamentosUnicos, pacientesUnicos, ciudadesUnicas, edadPromedio, conDiscapacidad };
   }, [filteredRecords]);
 
-  // Charts data
+  // Charts data - New charts based on available data
 
-  const costoPeriodoChart = useMemo(() => {
-    const map: Record<string, { periodo: string; valor: number; registros: number }> = {};
+  // ============ GÉNERO Y DIVERSIDAD ============
+  const generoChart = useMemo(() => {
+    const counts: Record<string, number> = {};
     filteredRecords.forEach(r => {
-      const k = r.periodo || 'Sin Periodo';
-      if (!map[k]) map[k] = { periodo: k, valor: 0, registros: 0 };
-      map[k].valor += r.valorTotal || 0;
-      map[k].registros += 1;
+      const sexo = (r.sexo || '').trim() || 'No especificado';
+      counts[sexo] = (counts[sexo] || 0) + 1;
     });
-    return Object.values(map).sort((a, b) => parsePeriodo(a.periodo) - parsePeriodo(b.periodo));
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [filteredRecords]);
+
+  const lgtbiqChart = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredRecords.forEach(r => {
+      const lgtbiq = (r.lgtbiq || '').trim() || 'No especificado';
+      counts[lgtbiq] = (counts[lgtbiq] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [filteredRecords]);
+
+  // ============ CURSO DE VIDA ============
+  const cursoDeVidaChart = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredRecords.forEach(r => {
+      const curso = (r.cursoDeVida || '').trim() || 'No especificado';
+      counts[curso] = (counts[curso] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [filteredRecords]);
+
+  // ============ DISTRIBUCIÓN POR EDAD ============
+  const edadChart = useMemo(() => {
+    const grupos: Record<string, number> = {
+      '0-5': 0,
+      '6-12': 0,
+      '13-17': 0,
+      '18-25': 0,
+      '26-35': 0,
+      '36-45': 0,
+      '46-55': 0,
+      '56-65': 0,
+      '66-75': 0,
+      '76+': 0,
+    };
+    filteredRecords.forEach(r => {
+      const edad = r.edad || 0;
+      if (edad <= 5) grupos['0-5']++;
+      else if (edad <= 12) grupos['6-12']++;
+      else if (edad <= 17) grupos['13-17']++;
+      else if (edad <= 25) grupos['18-25']++;
+      else if (edad <= 35) grupos['26-35']++;
+      else if (edad <= 45) grupos['36-45']++;
+      else if (edad <= 55) grupos['46-55']++;
+      else if (edad <= 65) grupos['56-65']++;
+      else if (edad <= 75) grupos['66-75']++;
+      else grupos['76+']++;
+    });
+    return Object.entries(grupos)
+      .filter(([_, value]) => value > 0)
+      .map(([name, value]) => ({ name, value }));
+  }, [filteredRecords]);
+
+  // ============ DISCAPACIDAD ============
+  const discapacidadChart = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredRecords.forEach(r => {
+      const disc = (r.discapacidad || '').trim() || 'No especificado';
+      counts[disc] = (counts[disc] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [filteredRecords]);
+
+  // ============ GRUPOS ÉTNICOS ============
+  const gruposEtnicosChart = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredRecords.forEach(r => {
+      const grupo = (r.gruposEtnicos || '').trim() || 'No especificado';
+      counts[grupo] = (counts[grupo] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10); // Top 10
+  }, [filteredRecords]);
+
+  // ============ ENFERMEDADES MÁS COMUNES ============
+  const enfermedadesChart = useMemo(() => {
+    const enfermedades = [
+      { key: 'hipertensionHTA', name: 'Hipertensión (HTA)' },
+      { key: 'diabetesMellitusDM', name: 'Diabetes Mellitus (DM)' },
+      { key: 'vih', name: 'VIH' },
+      { key: 'tuberculosis', name: 'Tuberculosis' },
+      { key: 'asma', name: 'Asma' },
+      { key: 'obesidad', name: 'Obesidad' },
+      { key: 'artritis', name: 'Artritis' },
+      { key: 'cancerCA', name: 'Cáncer (CA)' },
+      { key: 'patologiasCardiacas', name: 'Patologías Cardíacas' },
+      { key: 'trastornoSaludMental', name: 'Trastorno Salud Mental' },
+      { key: 'epilepsia', name: 'Epilepsia' },
+      { key: 'hipotiroidismo', name: 'Hipotiroidismo' },
+    ];
+    const counts: Record<string, number> = {};
+    enfermedades.forEach(enf => {
+      counts[enf.name] = 0;
+    });
+    filteredRecords.forEach(r => {
+      enfermedades.forEach(enf => {
+        const valor = (r as any)[enf.key];
+        if (valor && (valor === '1' || valor === 1 || String(valor).toLowerCase() === 'si' || String(valor).toLowerCase() === 'sí')) {
+          counts[enf.name]++;
+        }
+      });
+    });
+    return Object.entries(counts)
+      .filter(([_, value]) => value > 0)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10); // Top 10
   }, [filteredRecords]);
 
 
@@ -246,143 +371,6 @@ export default function DashboardPage() {
       .sort((a, b) => b.value - a.value);
   }, [filteredRecords]);
 
-  // ============ ESTANCIA DEL PACIENTE ============
-
-  // Gráfica 1: Top 3 Empresas por Mes (ordenado cronológicamente)
-  const empresasPorMesChart = useMemo(() => {
-    // Obtener top 3 empresas por total de pacientes
-    const pacientesPorEmpresa: Record<string, Set<string>> = {};
-    filteredRecords.forEach(r => {
-      const empresa = r.razonSocial || 'Sin Empresa';
-      const paciente = r.numeroDocumento || '';
-      if (!pacientesPorEmpresa[empresa]) pacientesPorEmpresa[empresa] = new Set();
-      if (paciente) pacientesPorEmpresa[empresa].add(paciente);
-    });
-
-    const topEmpresas = Object.entries(pacientesPorEmpresa)
-      .sort((a, b) => b[1].size - a[1].size)
-      .slice(0, 3)
-      .map(([name]) => name);
-
-    // Agrupar por periodo y empresa (con Sets para contar únicos)
-    const periodoData: Record<string, any> = {};
-
-    filteredRecords.forEach(r => {
-      const periodo = r.periodo || 'Sin Periodo';
-      const empresa = r.razonSocial || 'Sin Empresa';
-      const paciente = r.numeroDocumento || '';
-
-      if (topEmpresas.includes(empresa) && paciente) {
-        if (!periodoData[periodo]) {
-          periodoData[periodo] = { periodo };
-          topEmpresas.forEach(emp => {
-            periodoData[periodo][`_set_${emp}`] = new Set();
-          });
-        }
-        periodoData[periodo][`_set_${empresa}`].add(paciente);
-      }
-    });
-
-    // Convertir Sets a counts y preparar data
-    const result = Object.entries(periodoData)
-      .map(([periodo, data]) => {
-        const dataPoint: any = { periodo };
-        topEmpresas.forEach(empresa => {
-          const shortName = empresa.length > 20 ? empresa.substring(0, 20) + '...' : empresa;
-          dataPoint[shortName] = data[`_set_${empresa}`]?.size || 0;
-        });
-        return dataPoint;
-      })
-      .sort((a, b) => parsePeriodo(a.periodo) - parsePeriodo(b.periodo)); // Orden cronológico
-
-    return {
-      data: result,
-      empresas: topEmpresas.map(e => e.length > 20 ? e.substring(0, 20) + '...' : e)
-    };
-  }, [filteredRecords]);
-
-  const pacientesPorEstanciaChart = useMemo(() => {
-    const estanciaMap: Record<number, Set<string>> = {};
-
-    filteredRecords.forEach(r => {
-      const dias = r.diasEstancia || 0;
-      const paciente = r.numeroDocumento || '';
-
-      if (paciente && dias <= 30) {
-        if (!estanciaMap[dias]) estanciaMap[dias] = new Set();
-        estanciaMap[dias].add(paciente);
-      }
-    });
-
-    const result = [];
-    for (let i = 0; i <= 30; i++) {
-      result.push({ dias: i, pacientes: estanciaMap[i]?.size || 0 });
-    }
-
-    return result.filter(item => item.pacientes > 0);
-  }, [filteredRecords]);
-
-  const estanciaDetalleTable = useMemo(() => {
-    // Función para convertir número de Excel a fecha
-    const excelSerialToDate = (serial: any): Date | null => {
-      if (!serial) return null;
-
-      const numSerial = Number(serial);
-      if (!isNaN(numSerial) && numSerial > 1000) {
-        const excelEpoch = new Date(1899, 11, 30);
-        return new Date(excelEpoch.getTime() + numSerial * 86400000);
-      }
-
-      // Intentar parsear si es string
-      if (typeof serial === 'string') {
-        const parsed = new Date(serial);
-        if (!isNaN(parsed.getTime())) return parsed;
-      }
-
-      return null;
-    };
-
-    // Función para formatear fecha
-    const formatDate = (date: Date | null): string => {
-      if (!date) return '-';
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear();
-      return `${day}/${month}/${year}`;
-    };
-
-    // Función para calcular días entre dos fechas
-    const calcularDias = (ingreso: Date | null, egreso: Date | null): number => {
-      if (!ingreso || !egreso) return 0;
-      const diffTime = egreso.getTime() - ingreso.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays >= 0 ? diffDays : 0;
-    };
-
-    const registrosConEstancia = filteredRecords
-      .filter(r => r.fechaIngreso || r.fechaEgreso || (r.diasEstancia && r.diasEstancia > 0))
-      .map(r => {
-        const fechaIngresoObj = excelSerialToDate(r.fechaIngreso);
-        const fechaEgresoObj = excelSerialToDate(r.fechaEgreso);
-
-        // Calcular días de estancia
-        const diasCalculados = calcularDias(fechaIngresoObj, fechaEgresoObj);
-
-        return {
-          razonSocial: r.razonSocial || 'Sin Razón Social',
-          ciudadPrestador: r.ciudadPrestador || 'Sin Ciudad',
-          fechaIngreso: formatDate(fechaIngresoObj),
-          fechaEgreso: formatDate(fechaEgresoObj),
-          diasEstancia: diasCalculados || r.diasEstancia || 0,
-          numeroDocumento: r.numeroDocumento || ''
-        };
-      })
-      .filter(r => r.diasEstancia > 0) // Solo mostrar con estancia válida
-      .sort((a, b) => b.diasEstancia - a.diasEstancia)
-      .slice(0, 15);
-
-    return registrosConEstancia;
-  }, [filteredRecords]);
 
 
 
@@ -469,23 +457,18 @@ export default function DashboardPage() {
     return result;
   }, [recordsForMap]);
 
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
 
-  const formatShortCurrency = (val: number) => {
-    if (val >= 1_000_000_000) return `$${(val / 1_000_000_000).toFixed(1)}B`;
-    if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
-    if (val >= 1_000) return `$${(val / 1_000).toFixed(0)}K`;
-    return `$${val}`;
-  };
-
-  const activeFilterCount = Object.values(filters).filter(v => v).length;
+  const activeFilterCount = Object.entries(filters).filter(([k, v]) => k !== 'tipoRegistro' && v).length + (filters.tipoRegistro !== 'all' ? 1 : 0);
   const clearFilters = () => setFilters(emptyFilters);
-  const updateFilter = useCallback((key: keyof DashboardFilters, value: string) => {
+  const updateFilter = useCallback((key: keyof DashboardFilters, value: string | RecordType) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   }, []);
   const removeFilter = (key: keyof DashboardFilters) => {
-    updateFilter(key, '');
+    if (key === 'tipoRegistro') {
+      updateFilter(key, 'all');
+    } else {
+      updateFilter(key, '');
+    }
   };
 
   const handleMapDepartmentClick = useCallback((departmentName: string) => {
@@ -503,61 +486,6 @@ export default function DashboardPage() {
       updateFilter('epcDepartamento', match || departmentName);
     }
   }, [departamentos, updateFilter]);
-  // ============ DIAGNÓSTICO DETALLE DE CÁNCER ============
-  // Chart 1: Departments with cancer cases (all filtered records), sorted desc
-  const deptDxChart = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredRecords.forEach(r => {
-      const depto = r.epcDepartamento || 'Sin Departamento';
-      counts[depto] = (counts[depto] || 0) + 1;
-    });
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, value]) => ({ name, fullName: name, value }));
-  }, [filteredRecords]);
-
-  const deptDxTotalPages = Math.max(1, Math.ceil(deptDxChart.length / DEPT_PAGE_SIZE));
-  const deptDxPageData = useMemo(() => {
-    const start = deptDxPage * DEPT_PAGE_SIZE;
-    return deptDxChart.slice(start, start + DEPT_PAGE_SIZE);
-  }, [deptDxChart, deptDxPage]);
-
-  // Chart 2: Agrupador de Servicios for the selected department, sorted desc
-  const proceduresDxChart = useMemo(() => {
-    const counts: Record<string, number> = {};
-    const source = selectedDeptDx
-      ? filteredRecords.filter(r => (r.epcDepartamento || 'Sin Departamento') === selectedDeptDx)
-      : filteredRecords;
-    source.forEach(r => {
-      const agr = r.agrupadorServicios || 'Sin Agrupador';
-      counts[agr] = (counts[agr] || 0) + 1;
-    });
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, value]) => ({ name, fullName: name, value }));
-  }, [filteredRecords, selectedDeptDx]);
-
-  // Cards: Valor Unitario and Valor Total for selected procedure in the selected department
-  const procedureValues = useMemo(() => {
-    if (!selectedDeptDx || !selectedProcedure) return null;
-    const matching = filteredRecords.filter(
-      r => (r.epcDepartamento || 'Sin Departamento') === selectedDeptDx &&
-           (r.agrupadorServicios || 'Sin Agrupador') === selectedProcedure
-    );
-    if (matching.length === 0) return null;
-    const totalValorUnitario = matching.reduce((sum, r) => sum + (r.valorUnitario || 0), 0);
-    const totalValorTotal = matching.reduce((sum, r) => sum + (r.valorTotal || 0), 0);
-    const promedioUnitario = totalValorUnitario / matching.length;
-    return { promedioUnitario, totalValorTotal, registros: matching.length };
-  }, [filteredRecords, selectedDeptDx, selectedProcedure]);
-
-  // Valor total of ALL procedures in the selected department
-  const deptTotalValue = useMemo(() => {
-    const source = selectedDeptDx
-      ? filteredRecords.filter(r => (r.epcDepartamento || 'Sin Departamento') === selectedDeptDx)
-      : filteredRecords;
-    return source.reduce((sum, r) => sum + (r.valorTotal || 0), 0);
-  }, [filteredRecords, selectedDeptDx]);
 
   const advancedFiltersActive = [
     filters.estadoAuditoria, filters.ciudadPrestador, filters.tipoDocumento, 
@@ -591,7 +519,7 @@ export default function DashboardPage() {
         <div>
           <h1>
             <HiChartBar size={28} className="icon-bounce" style={{ color: 'var(--brand)', verticalAlign: 'middle', marginRight: '0.5rem' }} />
-            Dashboard Oncologico
+            Dashboard {filters.tipoRegistro === 'cancer' ? 'Oncológico' : filters.tipoRegistro === 'arthritis' ? 'Artritis' : 'General'}
           </h1>
           <p className="page-subtitle">
             {'Bienvenido, '}
@@ -608,7 +536,15 @@ export default function DashboardPage() {
       {/* Filters - Main Row */}
       <div className="dashboard-filters">
         <div className="filter-field">
-          <label><HiFilter size={14} style={{ display: 'inline', marginRight: '0.25rem' }} />Depto</label>
+          <label><HiFilter size={14} style={{ display: 'inline', marginRight: '0.25rem' }} />Tipo</label>
+          <select value={filters.tipoRegistro} onChange={e => updateFilter('tipoRegistro', e.target.value as RecordType)}>
+            <option value="all">Todos</option>
+            <option value="cancer">Cáncer</option>
+            <option value="arthritis">Artritis</option>
+          </select>
+        </div>
+        <div className="filter-field">
+          <label>Depto</label>
           <select value={filters.epcDepartamento} onChange={e => updateFilter('epcDepartamento', e.target.value)}>
             <option value="">Todos</option>
             {departamentos.map(d => <option key={d} value={d}>{d}</option>)}
@@ -731,6 +667,9 @@ export default function DashboardPage() {
       {/* Active filter tags */}
       {activeFilterCount > 0 && (
         <div className="active-filters">
+          {filters.tipoRegistro !== 'all' && (
+            <span className="filter-tag">Tipo: {filters.tipoRegistro === 'cancer' ? 'Cáncer' : 'Artritis'} <button onClick={() => removeFilter('tipoRegistro')}><HiX size={12} /></button></span>
+          )}
           {filters.epcDepartamento && (
             <span className="filter-tag">Depto: {filters.epcDepartamento} <button onClick={() => removeFilter('epcDepartamento')}><HiX size={12} /></button></span>
           )}
@@ -781,7 +720,7 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="kpi-row">
-        <div className="kpi-card">
+          <div className="kpi-card">
           <div className="kpi-main">
             <div className="kpi-icon" style={{ background: 'rgba(13,148,136,0.08)', color: 'var(--brand)', borderColor: 'rgba(13,148,136,0.2)' }}>
               <HiDocumentReport size={20} />
@@ -794,24 +733,24 @@ export default function DashboardPage() {
           <div className="kpi-divider"></div>
           <div className="kpi-detail">
             <span className="kpi-dot" style={{ background: 'var(--brand)' }}></span>
-            <span className="kpi-sub">{kpis.diagnosticosUnicos} diagnosticos unicos</span>
+            <span className="kpi-sub">Total de registros</span>
           </div>
         </div>
 
         <div className="kpi-card">
           <div className="kpi-main">
             <div className="kpi-icon" style={{ background: 'rgba(16,185,129,0.08)', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.2)' }}>
-              <HiCurrencyDollar size={20} />
+              <HiLocationMarker size={20} />
             </div>
             <div className="kpi-info">
-              <span className="kpi-label">Valor Total</span>
-              <div className="kpi-value" style={{ fontSize: '1.25rem' }}>{formatShortCurrency(kpis.valorTotal)}</div>
+              <span className="kpi-label">Ciudades</span>
+              <div className="kpi-value">{kpis.ciudadesUnicas}</div>
             </div>
           </div>
           <div className="kpi-divider"></div>
           <div className="kpi-detail">
             <span className="kpi-dot" style={{ background: 'var(--success)' }}></span>
-            <span className="kpi-sub">COP facturados</span>
+            <span className="kpi-sub">Ciudades únicas</span>
           </div>
         </div>
 
@@ -855,14 +794,14 @@ export default function DashboardPage() {
               <HiCalendar size={20} />
             </div>
             <div className="kpi-info">
-              <span className="kpi-label">Estancia</span>
-              <div className="kpi-value">{kpis.promedioEstancia.toFixed(1)}</div>
+              <span className="kpi-label">Edad Promedio</span>
+              <div className="kpi-value">{kpis.edadPromedio.toFixed(1)}</div>
             </div>
           </div>
           <div className="kpi-divider"></div>
           <div className="kpi-detail">
             <span className="kpi-dot" style={{ background: 'var(--info)' }}></span>
-            <span className="kpi-sub">Dias promedio</span>
+            <span className="kpi-sub">Años</span>
           </div>
         </div>
 
@@ -872,16 +811,14 @@ export default function DashboardPage() {
               <HiTrendingUp size={20} />
             </div>
             <div className="kpi-info">
-              <span className="kpi-label">Costo / Pac.</span>
-              <div className="kpi-value" style={{ fontSize: '1.25rem' }}>
-                {kpis.pacientesUnicos > 0 ? formatShortCurrency(kpis.valorTotal / kpis.pacientesUnicos) : '$0'}
-              </div>
+              <span className="kpi-label">Con Discapacidad</span>
+              <div className="kpi-value">{kpis.conDiscapacidad.toLocaleString()}</div>
             </div>
           </div>
           <div className="kpi-divider"></div>
           <div className="kpi-detail">
             <span className="kpi-dot" style={{ background: 'var(--danger)' }}></span>
-            <span className="kpi-sub">Promedio</span>
+            <span className="kpi-sub">{kpis.totalRegistros > 0 ? ((kpis.conDiscapacidad / kpis.totalRegistros) * 100).toFixed(1) : '0'}% del total</span>
           </div>
         </div>
       </div>
@@ -899,49 +836,152 @@ export default function DashboardPage() {
           <h3 style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 700, fontSize: '1.125rem' }}>Sin datos para mostrar</h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem', maxWidth: 400, margin: '0 auto' }}>
             {allRecords.length === 0
-              ? 'No hay registros en la base de datos. Importa datos desde la seccion de Registro Cancer.'
+              ? 'No hay registros en la base de datos. Importa datos desde la seccion de Registro Cancer o Artritis.'
               : 'Los filtros seleccionados no coinciden con ningun registro. Ajusta los filtros.'}
           </p>
         </div>
       ) : (
         <div className="charts-section">
-          {/* Row 1: Area chart full width */}
-          <div className="chart-card" style={{ animationDelay: '0.1s' }}>
-            <div className="chart-header">
-              <div>
-                <div className="chart-title">Evolucion Financiera por Periodo</div>
-                <div className="chart-subtitle">Valor facturado y volumen de registros a lo largo del tiempo</div>
+          {/* ============ GÉNERO Y DIVERSIDAD ============ */}
+          <div className="charts-row" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+            <div className="chart-card" style={{ animationDelay: '0.1s' }}>
+              <div className="chart-header">
+                <div>
+                  <div className="chart-title">Distribución por Género</div>
+                  <div className="chart-subtitle">Distribución de pacientes según sexo</div>
+                </div>
+                <span className="chart-badge">{generoChart.length} categorías</span>
               </div>
-              <span className="chart-badge">{costoPeriodoChart.length} periodos</span>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <defs>
+                    {[
+                      ['#14b8a6', '#0d9488'],
+                      ['#60a5fa', '#3b82f6'],
+                      ['#fbbf24', '#f59e0b'],
+                      ['#f87171', '#ef4444'],
+                      ['#a78bfa', '#8b5cf6'],
+                    ].map(([light, dark], i) => (
+                      <linearGradient key={`gen-${i}`} id={`genero-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor={light} stopOpacity={1} />
+                        <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
+                      </linearGradient>
+                    ))}
+                  </defs>
+                  <Pie
+                    data={generoChart}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={110}
+                    paddingAngle={4}
+                    dataKey="value"
+                    cornerRadius={6}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                    labelLine={false}
+                  >
+                    {generoChart.map((_, i) => (
+                      <Cell key={`gen-cell-${i}`} fill={`url(#genero-pie-grad-${i % 5})`} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={costoPeriodoChart}>
-                <defs>
-                  <linearGradient id="gradValor" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0d9488" stopOpacity={0.15} />
-                    <stop offset="100%" stopColor="#0d9488" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="gradRegistros" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.1} />
-                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="periodo" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => formatShortCurrency(v)} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  formatter={(value: number, name: string) => [
-                    name === 'valor' ? formatCurrency(value) : value.toLocaleString(),
-                    name === 'valor' ? 'Valor Total' : 'Registros'
-                  ]}
-                  contentStyle={TOOLTIP_STYLE}
-                />
-                <Legend wrapperStyle={{ fontSize: 12, fontWeight: 500 }} />
-                <Area yAxisId="left" type="monotone" dataKey="valor" stroke="#0d9488" strokeWidth={2} fill="url(#gradValor)" name="Valor Total" dot={false} activeDot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: '#0d9488' }} />
-                <Area yAxisId="right" type="monotone" dataKey="registros" stroke="#3b82f6" strokeWidth={1.5} fill="url(#gradRegistros)" name="Registros" dot={false} activeDot={{ r: 3.5, strokeWidth: 2, fill: '#fff', stroke: '#3b82f6' }} />
-              </AreaChart>
-            </ResponsiveContainer>
+
+            <div className="chart-card" style={{ animationDelay: '0.18s' }}>
+              <div className="chart-header">
+                <div>
+                  <div className="chart-title">Diversidad LGTBIQ+</div>
+                  <div className="chart-subtitle">Distribución de pacientes LGTBIQ+</div>
+                </div>
+                <span className="chart-badge">{lgtbiqChart.length} categorías</span>
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={lgtbiqChart} layout="vertical" margin={{ left: 10, right: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
+                  <Bar dataKey="value" name="Registros" radius={[0, 6, 6, 0]} barSize={30}>
+                    {lgtbiqChart.map((_, i) => (
+                      <Cell key={`lgtbiq-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* ============ CURSO DE VIDA Y EDAD ============ */}
+          <div className="charts-row" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+            <div className="chart-card" style={{ animationDelay: '0.26s' }}>
+              <div className="chart-header">
+                <div>
+                  <div className="chart-title">Curso de Vida</div>
+                  <div className="chart-subtitle">Distribución por etapa de vida</div>
+                </div>
+                <span className="chart-badge">{cursoDeVidaChart.length} categorías</span>
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <defs>
+                    {[
+                      ['#14b8a6', '#0d9488'],
+                      ['#60a5fa', '#3b82f6'],
+                      ['#fbbf24', '#f59e0b'],
+                      ['#f87171', '#ef4444'],
+                      ['#a78bfa', '#8b5cf6'],
+                    ].map(([light, dark], i) => (
+                      <linearGradient key={`cv-${i}`} id={`curso-vida-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor={light} stopOpacity={1} />
+                        <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
+                      </linearGradient>
+                    ))}
+                  </defs>
+                  <Pie
+                    data={cursoDeVidaChart}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={110}
+                    paddingAngle={4}
+                    dataKey="value"
+                    cornerRadius={6}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                    labelLine={false}
+                  >
+                    {cursoDeVidaChart.map((_, i) => (
+                      <Cell key={`cv-cell-${i}`} fill={`url(#curso-vida-pie-grad-${i % 5})`} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="chart-card" style={{ animationDelay: '0.34s' }}>
+              <div className="chart-header">
+                <div>
+                  <div className="chart-title">Distribución por Edad</div>
+                  <div className="chart-subtitle">Pacientes agrupados por rangos de edad</div>
+                </div>
+                <span className="chart-badge">{edadChart.length} rangos</span>
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={edadChart}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
+                  <Bar dataKey="value" name="Registros" radius={[6, 6, 0, 0]} barSize={40}>
+                    {edadChart.map((_, i) => (
+                      <Cell key={`edad-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
           {/* ============ LOCALIZACIÓN DEL PPL ============ */}
@@ -1073,361 +1113,116 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ============ ESTANCIA DEL PACIENTE ============ */}
-          <div className="charts-row" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-            {/* Gráfica 1: Empresas por Mes - CON PERIODOS EN ORDEN */}
-            <div className="chart-card" style={{ animationDelay: '0.44s' }}>
+          {/* ============ DISCAPACIDAD Y GRUPOS ÉTNICOS ============ */}
+          <div className="charts-row" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+            <div className="chart-card" style={{ animationDelay: '0.42s' }}>
               <div className="chart-header">
                 <div>
-                  <div className="chart-title">Pacientes por Empresa y Mes</div>
-                  <div className="chart-subtitle">Top 3 empresas - Evolución mensual</div>
+                  <div className="chart-title">Discapacidad</div>
+                  <div className="chart-subtitle">Distribución de pacientes con discapacidad</div>
                 </div>
+                <span className="chart-badge">{discapacidadChart.length} categorías</span>
               </div>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={empresasPorMesChart.data}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis 
-                    dataKey="periodo" 
-                    tick={{ fontSize: 8.5, fill: '#94a3b8', fontWeight: 500 }} 
-                    angle={-35} 
-                    textAnchor="end" 
-                    height={70}
-                    axisLine={false} 
-                    tickLine={false} 
-                  />
-                  <YAxis 
-                    tick={{ fontSize: 10, fill: '#94a3b8' }} 
-                    axisLine={false} 
-                    tickLine={false} 
-                  />
-                  <Tooltip 
-                    contentStyle={TOOLTIP_STYLE}
-                    formatter={(value: number, name: string) => [value.toLocaleString() + ' pacientes', name]}
-                  />
-                  <Legend 
-                    wrapperStyle={{ fontSize: 9, fontWeight: 500 }} 
-                    iconType="rect"
-                  />
-                  {empresasPorMesChart.empresas.map((empresa, index, arr) => (
-                    <Bar 
-                      key={empresa} 
-                      dataKey={empresa} 
-                      name={empresa}
-                      stackId="a"
-                      fill={CHART_COLORS[index % CHART_COLORS.length]} 
-                      radius={index === arr.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} 
-                      barSize={28}
-                    />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Gráfica 2: Pacientes por Días de Estancia */}
-            <div className="chart-card" style={{ animationDelay: '0.52s' }}>
-              <div className="chart-header">
-                <div>
-                  <div className="chart-title">Pacientes por Días de Estancia</div>
-                  <div className="chart-subtitle">Distribución según días hospitalizados</div>
-                </div>
-              </div>
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={pacientesPorEstanciaChart}>
-                  <defs>
-                    <linearGradient id="gradEstancia" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.2} />
-                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="dias" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 500 }} axisLine={false} tickLine={false} label={{ value: 'Días', position: 'insideBottom', offset: -5, fontSize: 11, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} label={{ value: 'Pacientes', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#64748b' }} />
-                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Pacientes']} contentStyle={TOOLTIP_STYLE} labelFormatter={(label) => `${label} días`} />
-                  <Area type="monotone" dataKey="pacientes" stroke="#8b5cf6" strokeWidth={2.5} fill="url(#gradEstancia)" dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 3 }} activeDot={{ r: 5, strokeWidth: 2, fill: '#fff', stroke: '#8b5cf6' }} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Gráfica 3: Tabla de Detalles - CON DÍAS CALCULADOS */}
-            <div className="chart-card" style={{ animationDelay: '0.6s', overflow: 'auto' }}>
-              <div className="chart-header">
-                <div>
-                  <div className="chart-title">Detalle de Estancias</div>
-                  <div className="chart-subtitle">Top 15 con días calculados</div>
-                </div>
-              </div>
-              <div style={{ maxHeight: '280px', overflowY: 'auto', fontSize: '0.75rem' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 1 }}>
-                    <tr>
-                      <th style={{ padding: '0.5rem 0.375rem', textAlign: 'left', fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '2px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Institución</th>
-                      <th style={{ padding: '0.5rem 0.375rem', textAlign: 'left', fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '2px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ciudad</th>
-                      <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '2px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ingreso</th>
-                      <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '2px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Egreso</th>
-                      <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-muted)', borderBottom: '2px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Días</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {estanciaDetalleTable.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>No hay datos de estancia disponibles</td>
-                      </tr>
-                    ) : (
-                      estanciaDetalleTable.map((row, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-light)', transition: 'background 0.15s' }}>
-                          <td style={{ padding: '0.5rem 0.375rem', fontSize: '0.6875rem', color: 'var(--text)', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.razonSocial}>
-                            {row.razonSocial.length > 18 ? row.razonSocial.substring(0, 18) + '...' : row.razonSocial}
-                          </td>
-                          <td style={{ padding: '0.5rem 0.375rem', fontSize: '0.6875rem', color: 'var(--text-secondary)' }}>{row.ciudadPrestador}</td>
-                          <td style={{ padding: '0.5rem 0.375rem', fontSize: '0.6875rem', color: 'var(--text-tertiary)', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{row.fechaIngreso}</td>
-                          <td style={{ padding: '0.5rem 0.375rem', fontSize: '0.6875rem', color: 'var(--text-tertiary)', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{row.fechaEgreso}</td>
-                          <td style={{ padding: '0.5rem 0.375rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--info)', textAlign: 'center' }}>{row.diasEstancia}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ============ DIAGNÓSTICO DETALLE DE CÁNCER ============ */}
-      {filteredRecords.length > 0 && (
-        <div style={{ marginTop: '1.5rem' }}>
-          <div style={{ marginBottom: '1rem' }}>
-            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text)', margin: 0 }}>Diagnóstico Detalle de Cáncer</h2>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>Selecciona un departamento para ver sus procedimientos y valores</p>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '1.25rem', alignItems: 'start' }}>
-            {/* Chart 1: Departamentos con casos */}
-            <div className="chart-card" style={{ animationDelay: '0.7s' }}>
-              <div className="chart-header">
-                <div>
-                  <div className="chart-title">Casos por Departamento</div>
-                  <div className="chart-subtitle">Departamentos con casos de cáncer (mayor a menor)</div>
-                </div>
-                <span className="chart-badge">{deptDxChart.length} deptos</span>
-              </div>
-              <ResponsiveContainer width="100%" height={Math.max(320, deptDxPageData.length * 34)}>
-                <BarChart data={deptDxPageData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                  <defs>
-                    <linearGradient id="gradDeptDx" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#0d9488" stopOpacity={0.6} />
-                      <stop offset="100%" stopColor="#0d9488" stopOpacity={0.9} />
-                    </linearGradient>
-                    <linearGradient id="gradDeptDxActive" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#0d9488" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#0d9488" stopOpacity={1} />
-                    </linearGradient>
-                  </defs>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={discapacidadChart} layout="vertical" margin={{ left: 10, right: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    width={110}
-                    tick={{ fontSize: 9, fill: '#64748b', fontWeight: 500 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v: string) => v.length > 16 ? v.substring(0, 16) + '...' : v}
-                  />
-                  <Tooltip
-                    cursor={false}
-                    formatter={(value: number) => [value.toLocaleString(), 'Casos']}
-                    contentStyle={TOOLTIP_STYLE}
-                  />
-                  <Bar
-                    dataKey="value"
-                    name="Casos"
-                    radius={[0, 6, 6, 0]}
-                    barSize={22}
-                    cursor="pointer"
-                    onClick={(data: any) => {
-                      const deptName = data?.fullName || data?.name;
-                      setSelectedDeptDx(deptName === selectedDeptDx ? null : deptName);
-                      setSelectedProcedure(null);
-                    }}
-                  >
-                    {deptDxPageData.map((entry, i) => (
-                      <Cell
-                        key={`dept-dx-${i}`}
-                        fill={entry.fullName === selectedDeptDx ? 'url(#gradDeptDxActive)' : 'url(#gradDeptDx)'}
-                        stroke={entry.fullName === selectedDeptDx ? '#0d9488' : 'none'}
-                        strokeWidth={entry.fullName === selectedDeptDx ? 1.5 : 0}
-                        style={{ cursor: 'pointer', transition: 'fill 0.2s' }}
-                      />
+                  <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
+                  <Bar dataKey="value" name="Registros" radius={[0, 6, 6, 0]} barSize={30}>
+                    {discapacidadChart.map((_, i) => (
+                      <Cell key={`disc-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              {/* Pagination controls */}
-              {deptDxTotalPages > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.625rem 0 0.25rem', borderTop: '1px solid var(--border-light)', marginTop: '0.5rem' }}>
-                  <button
-                    onClick={() => setDeptDxPage(p => Math.max(0, p - 1))}
-                    disabled={deptDxPage === 0}
-                    style={{
-                      padding: '0.25rem 0.625rem', fontSize: '0.75rem', fontWeight: 600,
-                      border: '1px solid var(--border)', borderRadius: 6, cursor: deptDxPage === 0 ? 'not-allowed' : 'pointer',
-                      background: deptDxPage === 0 ? 'var(--bg-tertiary)' : 'var(--bg-card)', color: deptDxPage === 0 ? 'var(--text-muted)' : 'var(--text)',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    ← Anterior
-                  </button>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, minWidth: 80, textAlign: 'center' }}>
-                    {deptDxPage + 1} / {deptDxTotalPages}
-                  </span>
-                  <button
-                    onClick={() => setDeptDxPage(p => Math.min(deptDxTotalPages - 1, p + 1))}
-                    disabled={deptDxPage >= deptDxTotalPages - 1}
-                    style={{
-                      padding: '0.25rem 0.625rem', fontSize: '0.75rem', fontWeight: 600,
-                      border: '1px solid var(--border)', borderRadius: 6, cursor: deptDxPage >= deptDxTotalPages - 1 ? 'not-allowed' : 'pointer',
-                      background: deptDxPage >= deptDxTotalPages - 1 ? 'var(--bg-tertiary)' : 'var(--bg-card)', color: deptDxPage >= deptDxTotalPages - 1 ? 'var(--text-muted)' : 'var(--text)',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    Siguiente →
-                  </button>
-                </div>
-              )}
             </div>
 
-            {/* Chart 2: Agrupador de Servicios del departamento seleccionado */}
-            <div className="chart-card" style={{ animationDelay: '0.8s' }}>
+            <div className="chart-card" style={{ animationDelay: '0.5s' }}>
               <div className="chart-header">
                 <div>
-                  <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                    Agrupador de Servicios
-                    <HiChevronUp size={14} style={{ color: 'var(--brand)' }} />
-                  </div>
-                  <div className="chart-subtitle">
-                    {selectedDeptDx
-                      ? `Procedimientos en ${selectedDeptDx} (mayor a menor)`
-                      : 'Procedimientos de todos los departamentos (mayor a menor)'}
-                  </div>
+                  <div className="chart-title">Grupos Étnicos</div>
+                  <div className="chart-subtitle">Top 10 grupos étnicos</div>
                 </div>
-                <span className="chart-badge">{proceduresDxChart.length} agrupadores</span>
+                <span className="chart-badge">{gruposEtnicosChart.length} grupos</span>
               </div>
-              {proceduresDxChart.length > 0 ? (
-                <ResponsiveContainer width="100%" height={Math.max(280, proceduresDxChart.length * 30)}>
-                  <BarChart data={proceduresDxChart} layout="vertical" margin={{ left: 10, right: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                    <YAxis
-                      dataKey="name"
-                      type="category"
-                      width={120}
-                      tick={{ fontSize: 8.5, fill: '#64748b', fontWeight: 500 }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v: string) => v.length > 18 ? v.substring(0, 18) + '...' : v}
-                    />
-                    <Tooltip
-                      cursor={false}
-                      formatter={(value: number) => [value.toLocaleString(), 'Registros']}
-                      contentStyle={TOOLTIP_STYLE}
-                    />
-                    <Bar
-                      dataKey="value"
-                      name="Registros"
-                      radius={[0, 6, 6, 0]}
-                      barSize={18}
-                      cursor="pointer"
-                      onClick={(data: any) => {
-                        const procName = data?.fullName || data?.name;
-                        setSelectedProcedure(procName === selectedProcedure ? null : procName);
-                      }}
-                    >
-                      {proceduresDxChart.map((entry, i) => (
-                        <Cell
-                          key={`proc-dx-${i}`}
-                          fill={entry.fullName === selectedProcedure ? '#0d9488' : CHART_COLORS[i % CHART_COLORS.length]}
-                          stroke={entry.fullName === selectedProcedure ? '#0d9488' : 'none'}
-                          strokeWidth={entry.fullName === selectedProcedure ? 1.5 : 0}
-                          style={{ cursor: 'pointer', transition: 'fill 0.2s' }}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 280, color: 'var(--text-muted)' }}>
-                  <HiCube size={40} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
-                  <p style={{ fontSize: '0.8125rem', textAlign: 'center', maxWidth: 220 }}>No hay datos disponibles</p>
-                </div>
-              )}
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <defs>
+                    {[
+                      ['#14b8a6', '#0d9488'],
+                      ['#60a5fa', '#3b82f6'],
+                      ['#fbbf24', '#f59e0b'],
+                      ['#f87171', '#ef4444'],
+                      ['#a78bfa', '#8b5cf6'],
+                      ['#22d3ee', '#06b6d4'],
+                      ['#4ade80', '#22c55e'],
+                      ['#f472b6', '#ec4899'],
+                      ['#fb923c', '#f97316'],
+                      ['#818cf8', '#6366f1'],
+                    ].map(([light, dark], i) => (
+                      <linearGradient key={`etn-${i}`} id={`etnicos-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor={light} stopOpacity={1} />
+                        <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
+                      </linearGradient>
+                    ))}
+                  </defs>
+                  <Pie
+                    data={gruposEtnicosChart}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={110}
+                    paddingAngle={4}
+                    dataKey="value"
+                    cornerRadius={6}
+                    label={({ name, percent }) => `${name.length > 12 ? name.substring(0, 12) + '...' : name}: ${(percent * 100).toFixed(1)}%`}
+                    labelLine={false}
+                  >
+                    {gruposEtnicosChart.map((_, i) => (
+                      <Cell key={`etn-cell-${i}`} fill={`url(#etnicos-pie-grad-${i % 10})`} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
+          </div>
 
-            {/* Cards de Valor Unitario y Valor Total */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 220, maxWidth: 260 }}>
-              {/* Card: Valor Unitario por Procedimiento */}
-              <div
-                className="kpi-card"
-                style={{
-                  opacity: selectedProcedure ? 1 : 0.45,
-                  transition: 'opacity 0.3s',
-                }}
-              >
-                <div className="kpi-main">
-                  <div className="kpi-icon" style={{ background: 'rgba(59,130,246,0.08)', color: '#3b82f6', borderColor: 'rgba(59,130,246,0.2)' }}>
-                    <HiCurrencyDollar size={20} />
-                  </div>
-                  <div className="kpi-info">
-                    <span className="kpi-label">Valor Unitario</span>
-                    <div className="kpi-value" style={{ fontSize: '1.25rem' }}>
-                      {selectedProcedure && procedureValues
-                        ? formatShortCurrency(procedureValues.promedioUnitario)
-                        : '—'}
-                    </div>
-                  </div>
-                </div>
-                <div className="kpi-divider"></div>
-                <div className="kpi-detail">
-                  <span className="kpi-dot" style={{ background: '#3b82f6' }}></span>
-                  <span className="kpi-sub">
-                    {selectedProcedure && procedureValues
-                      ? `${procedureValues.registros} registro${procedureValues.registros !== 1 ? 's' : ''} · ${selectedProcedure.length > 18 ? selectedProcedure.substring(0, 18) + '...' : selectedProcedure}`
-                      : 'Selecciona un procedimiento'}
-                  </span>
-                </div>
+          {/* ============ ENFERMEDADES MÁS COMUNES ============ */}
+          <div className="chart-card" style={{ animationDelay: '0.58s' }}>
+            <div className="chart-header">
+              <div>
+                <div className="chart-title">Enfermedades Más Comunes</div>
+                <div className="chart-subtitle">Top 10 enfermedades diagnosticadas</div>
               </div>
-
-              {/* Card: Valor Total del departamento */}
-              <div
-                className="kpi-card"
-                style={{
-                  transition: 'opacity 0.3s',
-                }}
-              >
-                <div className="kpi-main">
-                  <div className="kpi-icon" style={{ background: 'rgba(16,185,129,0.08)', color: '#10b981', borderColor: 'rgba(16,185,129,0.2)' }}>
-                    <HiTrendingUp size={20} />
-                  </div>
-                  <div className="kpi-info">
-                    <span className="kpi-label">Valor Total</span>
-                    <div className="kpi-value" style={{ fontSize: '1.25rem' }}>
-                      {formatShortCurrency(deptTotalValue)}
-                    </div>
-                  </div>
-                </div>
-                <div className="kpi-divider"></div>
-                <div className="kpi-detail">
-                  <span className="kpi-dot" style={{ background: '#10b981' }}></span>
-                  <span className="kpi-sub">
-                    {selectedDeptDx
-                      ? `${selectedDeptDx.length > 18 ? selectedDeptDx.substring(0, 18) + '...' : selectedDeptDx} · Todos los procedimientos`
-                      : 'Todos los departamentos · General'}
-                  </span>
-                </div>
-              </div>
+              <span className="chart-badge">{enfermedadesChart.length} enfermedades</span>
             </div>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={enfermedadesChart} layout="vertical" margin={{ left: 10, right: 20, top: 10, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  width={180} 
+                  tick={{ fontSize: 9, fill: '#64748b', fontWeight: 500 }} 
+                  axisLine={false} 
+                  tickLine={false}
+                  tickFormatter={(v: string) => v.length > 25 ? v.substring(0, 25) + '...' : v}
+                />
+                <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
+                <Bar dataKey="value" name="Registros" radius={[0, 6, 6, 0]} barSize={35}>
+                  {enfermedadesChart.map((_, i) => (
+                    <Cell key={`enf-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}
+
     </div>
   );
 }
