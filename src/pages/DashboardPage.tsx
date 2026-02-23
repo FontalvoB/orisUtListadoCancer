@@ -381,22 +381,6 @@ export default function DashboardPage() {
       .sort((a, b) => b.value - a.value);
   }, [filteredRecords]);
 
-  // ============ INTERVENCIONES POR PROCESO ============
-  const intervencionesChart = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredRecords.forEach(r => {
-      const proceso = (
-        (r as any).procesoRealizado ||
-        (r as any).agrupadorServicios ||
-        r.tipoServicio ||
-        ''
-      ).trim() || 'Sin proceso';
-      counts[proceso] = (counts[proceso] || 0) + 1;
-    });
-    return Object.entries(counts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [filteredRecords]);
 
   // ============ DISTRIBUCIÓN N° DE RIESGO ============
   const riskDistributionData = useMemo(() => {
