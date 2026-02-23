@@ -3,12 +3,12 @@ import { useAuth } from '../context/AuthContext';
 import { getAllCancerRecords, computeAllDistinctValues } from '../services/cancerService';
 import { getAllArthritisRecords } from '../services/arthritisService';
 import {
-  HiDocumentReport, HiLocationMarker, HiCurrencyDollar, HiUserGroup,
+  HiDocumentReport, HiLocationMarker, HiUserGroup,
   HiFilter, HiX, HiRefresh, HiTrendingUp, HiCalendar,
-  HiChevronUp, HiCube, HiChartBar,
+  HiChartBar,
 } from 'react-icons/hi';
 import {
-  BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
+  BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import ColombiaMap from '../components/ColombiaMap';
