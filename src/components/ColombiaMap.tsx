@@ -3,14 +3,12 @@ import { geoMercator, geoPath } from 'd3-geo';
 import type { FeatureCollection, Geometry } from 'geojson';
 import colombiaGeoData from '../data/colombia-departments.json';
 
-
 // ── Types ──────────────────────────────────────────────────────────
 interface DepartmentProperties {
   DPTO_CCDGO: string;
   DPTO_CNMBR: string;
   [key: string]: unknown;
 }
-
 
 interface DeptData {
   casos: number;
@@ -24,21 +22,27 @@ interface DeptData {
   mujeres?: number;
 }
 
-
 interface EstablecimientoRow {
   name: string;
   value: number;
   pct: string;
 }
 
+interface RiskRow {
+  riesgo: string;
+  count: number;
+  pct: string;
+}
 
 interface ColombiaMapProps {
   departmentData: Record<string, DeptData>;
   onDepartmentClick: (departmentName: string) => void;
   selectedDepartment?: string;
   nombreEstablecimientoData?: EstablecimientoRow[];
+  riskData?: RiskRow[];
+  onRiskClick?: (riesgo: string) => void;
+  selectedRisk?: string;
 }
-
 
 // ── Name normaliser ────────────────────────────────────────────────
 const normalizeName = (name: string): string =>
@@ -51,7 +55,6 @@ const normalizeName = (name: string): string =>
     .replace(/SAN ANDRES.*/, 'SAN ANDRES')
     .trim();
 
-
 const matchDepartment = (
   geoName: string,
   dataKeys: string[],
@@ -63,10 +66,8 @@ const matchDepartment = (
   });
 };
 
-
 // ── Colour helpers ─────────────────────────────────────────────────
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-
 
 const heatColor = (t: number): string => {
   if (t <= 0) return 'rgb(220,237,230)';
@@ -86,12 +87,10 @@ const heatColor = (t: number): string => {
   return `rgb(${Math.round(lerp(240, 200, s))},${Math.round(lerp(100, 40, s))},${Math.round(lerp(40, 40, s))})`;
 };
 
-
 // ── Zoom constants ─────────────────────────────────────────────────
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 6;
 const ZOOM_STEP = 0.25;
-
 
 // ── Component ──────────────────────────────────────────────────────
 export default function ColombiaMap({
@@ -99,11 +98,13 @@ export default function ColombiaMap({
   onDepartmentClick,
   selectedDepartment,
   nombreEstablecimientoData = [],
+  riskData = [],
+  onRiskClick,
+  selectedRisk,
 }: ColombiaMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-
 
   const [tooltip, setTooltip] = useState<{
     x: number;
@@ -112,19 +113,15 @@ export default function ColombiaMap({
     data: DeptData | null;
   } | null>(null);
 
-
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 500, height: 540 });
   const [animReady, setAnimReady] = useState(false);
   const [detailDept, setDetailDept] = useState<string | null>(null);
 
-
-  // ── Zoom & Pan state ──
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
-
 
   // ── Responsive sizing ──
   useEffect(() => {
@@ -140,29 +137,24 @@ export default function ColombiaMap({
     return () => ro.disconnect();
   }, []);
 
-
   // ── Entrance animation ──
   useEffect(() => {
     const t = setTimeout(() => setAnimReady(true), 100);
     return () => clearTimeout(t);
   }, []);
 
-
-  // ── GeoJSON data ──
   const geo = useMemo(
     () => colombiaGeoData as unknown as FeatureCollection<Geometry, DepartmentProperties>,
     [],
   );
 
-
   const dataKeys = useMemo(() => Object.keys(departmentData), [departmentData]);
+
   const maxCasos = useMemo(() => {
     const vals = Object.values(departmentData).map((d) => d.casos);
     return Math.max(1, ...vals);
   }, [departmentData]);
 
-
-  // ── Projection + path generator ──
   const pathGen = useMemo(() => {
     const proj = geoMercator()
       .center([-73.5, 4.5])
@@ -171,8 +163,6 @@ export default function ColombiaMap({
     return geoPath().projection(proj);
   }, [dimensions]);
 
-
-  // ── Centroids for labels ──
   const centroids = useMemo(() => {
     const map: Record<string, [number, number]> = {};
     geo.features.forEach((f) => {
@@ -183,7 +173,6 @@ export default function ColombiaMap({
     });
     return map;
   }, [geo, pathGen]);
-
 
   // ── Wheel zoom ──
   useEffect(() => {
@@ -210,8 +199,7 @@ export default function ColombiaMap({
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-
-  // ── Mouse drag to pan ──
+  // ── Drag to pan ──
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (e.button !== 0) return;
@@ -221,7 +209,6 @@ export default function ColombiaMap({
     },
     [pan],
   );
-
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
@@ -234,26 +221,14 @@ export default function ColombiaMap({
     [isPanning],
   );
 
+  const onPointerUp = useCallback(() => setIsPanning(false), []);
 
-  const onPointerUp = useCallback(() => {
-    setIsPanning(false);
-  }, []);
+  // ── Zoom buttons ──
+  const zoomIn = useCallback(() => setZoom((z) => Math.min(MAX_ZOOM, z + ZOOM_STEP * 2)), []);
+  const zoomOut = useCallback(() => setZoom((z) => Math.max(MIN_ZOOM, z - ZOOM_STEP * 2)), []);
+  const resetView = useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, []);
 
-
-  // ── Zoom button handlers ──
-  const zoomIn = useCallback(() => {
-    setZoom((z) => Math.min(MAX_ZOOM, z + ZOOM_STEP * 2));
-  }, []);
-  const zoomOut = useCallback(() => {
-    setZoom((z) => Math.max(MIN_ZOOM, z - ZOOM_STEP * 2));
-  }, []);
-  const resetView = useCallback(() => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }, []);
-
-
-  // ── Zoom to a specific feature ──
+  // ── Zoom to feature ──
   const zoomToFeature = useCallback(
     (feature: (typeof geo.features)[0]) => {
       const bounds = pathGen.bounds(feature as never);
@@ -269,13 +244,15 @@ export default function ColombiaMap({
       const cx = (x0 + x1) / 2;
       const cy = (y0 + y1) / 2;
       setZoom(newZoom);
-      setPan({ x: dimensions.width / 2 - cx * newZoom, y: dimensions.height / 2 - cy * newZoom });
+      setPan({
+        x: dimensions.width / 2 - cx * newZoom,
+        y: dimensions.height / 2 - cy * newZoom,
+      });
     },
     [pathGen, dimensions],
   );
 
-
-  // ── Tooltip handler ──
+  // ── Tooltip ──
   const handleMouseMove = useCallback(
     (e: React.MouseEvent, name: string, data: DeptData | null) => {
       if (isPanning) return;
@@ -287,16 +264,17 @@ export default function ColombiaMap({
     [isPanning],
   );
 
-
   const handleMouseLeave = useCallback(() => {
     setTooltip(null);
     setHoveredId(null);
   }, []);
 
-
   const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
-
+    new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      maximumFractionDigits: 0,
+    }).format(val);
 
   const legendStops = useMemo(() => {
     const n = 6;
@@ -306,21 +284,19 @@ export default function ColombiaMap({
     });
   }, [maxCasos]);
 
-
-  // ── Detail panel data ──
+  // ── Detail panel ──
   const generalData = useMemo(() => {
     const all = Object.values(departmentData);
     if (all.length === 0) return null;
     return {
       name: 'Colombia - General',
-      casos:      all.reduce((s, d) => s + d.casos,           0),
-      valorTotal: all.reduce((s, d) => s + d.valorTotal,      0),
-      pacientes:  all.reduce((s, d) => s + d.pacientes,       0),
-      hombres:    all.reduce((s, d) => s + (d.hombres ?? 0),  0),
-      mujeres:    all.reduce((s, d) => s + (d.mujeres ?? 0),  0),
+      casos:      all.reduce((s, d) => s + d.casos, 0),
+      valorTotal: all.reduce((s, d) => s + d.valorTotal, 0),
+      pacientes:  all.reduce((s, d) => s + d.pacientes, 0),
+      hombres:    all.reduce((s, d) => s + (d.hombres ?? 0), 0),
+      mujeres:    all.reduce((s, d) => s + (d.mujeres ?? 0), 0),
     };
   }, [departmentData]);
-
 
   const detailData = useMemo(() => {
     if (!detailDept) return null;
@@ -332,9 +308,7 @@ export default function ColombiaMap({
     return key ? { name: key, ...departmentData[key] } : null;
   }, [detailDept, departmentData]);
 
-
   const panelData = detailDept && detailData ? detailData : generalData;
-
 
   const prettyName = (raw: string) =>
     raw
@@ -347,16 +321,16 @@ export default function ColombiaMap({
       .replace('Archipielago De ', '')
       .replace(', Providencia Y Santa Catalina', '');
 
-
   const invZoom = 1 / zoom;
   const labelFontName = Math.max(7, Math.round(11 * invZoom));
   const labelFontCount = Math.max(6, Math.round(10 * invZoom));
   const strokeScale = invZoom;
 
-
+  // ── Render ──────────────────────────────────────────────────────
   return (
     <div className="colombia-map-wrapper" ref={containerRef}>
-      {/* ── Header ── */}
+
+      {/* Header */}
       <div className="chart-header" style={{ marginBottom: 0 }}>
         <div>
           <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -380,12 +354,10 @@ export default function ColombiaMap({
         </div>
       </div>
 
-
-      {/* ── Map + Detail layout ── */}
+      {/* Map + Detail layout */}
       <div className={`colombia-map-layout ${panelData ? 'with-detail' : ''}`}>
 
-
-        {/* ── Map ── */}
+        {/* Map container */}
         <div
           className="colombia-map-container"
           ref={mapContainerRef}
@@ -402,7 +374,6 @@ export default function ColombiaMap({
             <button onClick={zoomOut} disabled={zoom <= MIN_ZOOM} title="Alejar">−</button>
             <button onClick={resetView} title="Restablecer vista" className="map-zoom-reset">⟲</button>
           </div>
-
 
           <svg
             ref={svgRef}
@@ -423,11 +394,17 @@ export default function ColombiaMap({
               </filter>
               <filter id="bevel">
                 <feGaussianBlur in="SourceAlpha" stdDeviation="1" result="blur" />
-                <feSpecularLighting in="blur" surfaceScale="3" specularConstant="0.5" specularExponent="15" result="specular">
+                <feSpecularLighting
+                  in="blur" surfaceScale="3" specularConstant="0.5"
+                  specularExponent="15" result="specular"
+                >
                   <fePointLight x="-100" y="-200" z="300" />
                 </feSpecularLighting>
                 <feComposite in="specular" in2="SourceAlpha" operator="in" result="specular_cropped" />
-                <feComposite in="SourceGraphic" in2="specular_cropped" operator="arithmetic" k1="0" k2="1" k3="0.6" k4="0" />
+                <feComposite
+                  in="SourceGraphic" in2="specular_cropped"
+                  operator="arithmetic" k1="0" k2="1" k3="0.6" k4="0"
+                />
               </filter>
               <radialGradient id="bgGlow" cx="50%" cy="45%" r="55%">
                 <stop offset="0%" stopColor="#0d9488" stopOpacity="0.04" />
@@ -438,9 +415,7 @@ export default function ColombiaMap({
               </clipPath>
             </defs>
 
-
             <rect x="0" y="0" width={dimensions.width} height={dimensions.height} fill="url(#bgGlow)" rx="16" />
-
 
             <g clipPath="url(#mapClip)">
               <g
@@ -464,7 +439,6 @@ export default function ColombiaMap({
                   })}
                 </g>
 
-
                 {/* Departments */}
                 <g filter="url(#bevel)">
                   {geo.features.map((feature, idx) => {
@@ -478,9 +452,10 @@ export default function ColombiaMap({
                     const isHovered = hoveredId === feature.properties.DPTO_CCDGO;
                     const isSelected = selectedDepartment
                       ? normalizeName(selectedDepartment) === normalizeName(geoName) ||
-                        (matchedKey ? normalizeName(selectedDepartment) === normalizeName(matchedKey) : false)
+                        (matchedKey
+                          ? normalizeName(selectedDepartment) === normalizeName(matchedKey)
+                          : false)
                       : false;
-
 
                     return (
                       <path
@@ -490,7 +465,13 @@ export default function ColombiaMap({
                         fill={fill}
                         stroke={isSelected ? '#0d9488' : isHovered ? '#0d9488' : '#ffffff'}
                         strokeWidth={(isSelected ? 2.5 : isHovered ? 2 : 0.8) * strokeScale}
-                        filter={isSelected ? 'url(#selectedGlow)' : isHovered ? 'url(#hoverGlow)' : 'none'}
+                        filter={
+                          isSelected
+                            ? 'url(#selectedGlow)'
+                            : isHovered
+                            ? 'url(#hoverGlow)'
+                            : 'none'
+                        }
                         style={{
                           cursor: isPanning ? 'grabbing' : 'pointer',
                           opacity: animReady ? 1 : 0,
@@ -500,7 +481,9 @@ export default function ColombiaMap({
                         onMouseMove={(e) => handleMouseMove(e, prettyName(geoName), data)}
                         onMouseLeave={handleMouseLeave}
                         onClick={(e) => {
-                          const dist = Math.abs(e.clientX - panStart.current.x) + Math.abs(e.clientY - panStart.current.y);
+                          const dist =
+                            Math.abs(e.clientX - panStart.current.x) +
+                            Math.abs(e.clientY - panStart.current.y);
                           if (dist < 5) {
                             onDepartmentClick(matchedKey || geoName);
                             setDetailDept(matchedKey || geoName);
@@ -512,7 +495,6 @@ export default function ColombiaMap({
                   })}
                 </g>
 
-
                 {/* Labels */}
                 {animReady &&
                   geo.features.map((feature) => {
@@ -523,7 +505,10 @@ export default function ColombiaMap({
                     if (!c) return null;
                     const hasData = data && data.casos > 0;
                     return (
-                      <g key={`label-${feature.properties.DPTO_CCDGO}`} style={{ pointerEvents: 'none' }}>
+                      <g
+                        key={`label-${feature.properties.DPTO_CCDGO}`}
+                        style={{ pointerEvents: 'none' }}
+                      >
                         <text
                           x={c[0]}
                           y={c[1] - (hasData ? 5 : 0) * invZoom}
@@ -555,8 +540,7 @@ export default function ColombiaMap({
             </g>
           </svg>
 
-
-          {/* ── Tooltip ── */}
+          {/* Tooltip */}
           {tooltip && !isPanning && (
             <div
               className="colombia-map-tooltip"
@@ -587,25 +571,22 @@ export default function ColombiaMap({
           )}
         </div>
 
-
-        {/* ── Detail Panel ── */}
+        {/* Detail Panel */}
         {panelData && (
           <div className="map-detail-panel">
 
-            {/* ── Header con cards de sexo ── */}
+            {/* Header con cards de sexo */}
             <div className="map-detail-header">
               <div>
                 <div className="map-detail-title">
                   {detailDept ? prettyName(panelData.name) : 'Resumen General'}
                 </div>
                 <div className="map-detail-subtitle">
-                  {detailDept ? 'Desglose departamental' : 'Todos los deparamentos'}
+                  {detailDept ? 'Desglose departamental' : 'Todos los departamentos'}
                 </div>
               </div>
 
-              {/* Gender cards + close button */}
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-
                 {/* Card Hombres */}
                 <div style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -666,7 +647,6 @@ export default function ColombiaMap({
               </div>
             </div>
 
-
             {/* KPI row */}
             <div className="map-detail-kpis">
               <div className="map-detail-kpi" style={{ animationDelay: '0.1s' }}>
@@ -683,21 +663,122 @@ export default function ColombiaMap({
               </div>
             </div>
 
+            {/* N° De Riesgo */}
+            {riskData.length > 0 && (
+              <div className="map-detail-section">
+                <div
+                  className="map-detail-section-title"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                >
+                  <span>N° De Riesgo</span>
+                  {selectedRisk && (
+                    <span
+                      onClick={() => onRiskClick?.('')}
+                      style={{
+                        fontSize: '0.7rem', fontWeight: 600,
+                        background: 'rgba(13,148,136,0.1)', color: '#0d9488',
+                        borderRadius: 20, padding: '2px 8px', cursor: 'pointer',
+                      }}
+                    >
+                      ✕ Limpiar
+                    </span>
+                  )}
+                </div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(68px, 1fr))',
+                  gap: '0.4rem',
+                  marginTop: '0.5rem',
+                }}>
+                  {riskData.map((item) => {
+                    const isSelected = selectedRisk === item.riesgo;
+                    return (
+                      <div
+                        key={item.riesgo}
+                        onClick={() => onRiskClick?.(item.riesgo)}
+                        style={{
+                          position: 'relative',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          padding: '0.5rem 0.3rem 0.45rem',
+                          borderRadius: 10,
+                          border: isSelected ? '1.5px solid #0d9488' : '1px solid #e2e8f0',
+                          background: isSelected ? 'rgba(13,148,136,0.07)' : '#f8fafc',
+                          cursor: 'pointer',
+                          overflow: 'hidden',
+                          transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
+                          boxShadow: isSelected ? '0 0 0 3px rgba(13,148,136,0.12)' : 'none',
+                        }}
+                        onMouseEnter={e => {
+                          if (!isSelected)
+                            (e.currentTarget as HTMLDivElement).style.background = '#f0fdf4';
+                        }}
+                        onMouseLeave={e => {
+                          if (!isSelected)
+                            (e.currentTarget as HTMLDivElement).style.background = '#f8fafc';
+                        }}
+                      >
+                        {/* Barra de progreso en la base */}
+                        <div style={{
+                          position: 'absolute',
+                          bottom: 0, left: 0,
+                          height: '3px',
+                          width: `${item.pct}%`,
+                          background: isSelected ? '#0d9488' : '#cbd5e1',
+                          borderRadius: '0 0 10px 10px',
+                          transition: 'width 0.4s ease',
+                        }} />
+                        <div style={{
+                          fontSize: '0.58rem', color: '#94a3b8', fontWeight: 600,
+                          textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1,
+                        }}>
+                          Riesgo
+                        </div>
+                        <div style={{
+                          fontSize: '1.1rem', fontWeight: 800,
+                          color: isSelected ? '#0d9488' : '#0f172a',
+                          lineHeight: 1.2, marginTop: 2,
+                        }}>
+                          {item.riesgo}
+                        </div>
+                        <div style={{
+                          fontSize: '0.72rem', fontWeight: 700,
+                          color: isSelected ? '#0d9488' : '#475569',
+                          marginTop: 3,
+                        }}>
+                          {item.count.toLocaleString()}
+                        </div>
+                        <div style={{
+                          fontSize: '0.62rem', color: '#94a3b8',
+                          fontWeight: 500, marginTop: 1, marginBottom: 4,
+                        }}>
+                          {item.pct}%
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
-            {/* ── Tabla de Establecimientos ── */}
+            {/* Tabla de Establecimientos */}
             <div className="map-detail-section">
-              <div className="map-detail-section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div
+                className="map-detail-section-title"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+              >
                 <span>Establecimientos</span>
                 {nombreEstablecimientoData.length > 0 && (
                   <span style={{
-                    fontSize: '0.7rem', fontWeight: 600, background: 'rgba(13,148,136,0.1)',
-                    color: '#0d9488', borderRadius: 20, padding: '2px 8px',
+                    fontSize: '0.7rem', fontWeight: 600,
+                    background: 'rgba(13,148,136,0.1)', color: '#0d9488',
+                    borderRadius: 20, padding: '2px 8px',
                   }}>
                     {nombreEstablecimientoData.length}
                   </span>
                 )}
               </div>
-
 
               {nombreEstablecimientoData.length === 0 ? (
                 <div className="map-detail-empty">Sin datos de establecimientos</div>
@@ -737,15 +818,24 @@ export default function ColombiaMap({
                           onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
                           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                         >
-                          <td style={{ padding: '0.4rem 0.5rem', color: '#0f172a', fontWeight: 500, lineHeight: 1.3 }}>
+                          <td style={{
+                            padding: '0.4rem 0.5rem', color: '#0f172a',
+                            fontWeight: 500, lineHeight: 1.3,
+                          }}>
                             <span title={item.name}>
                               {item.name.length > 28 ? item.name.substring(0, 28) + '…' : item.name}
                             </span>
                           </td>
-                          <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', color: '#0d9488', fontWeight: 700 }}>
+                          <td style={{
+                            padding: '0.4rem 0.5rem', textAlign: 'right',
+                            color: '#0d9488', fontWeight: 700,
+                          }}>
                             {item.value.toLocaleString()}
                           </td>
-                          <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', color: '#94a3b8', fontSize: '0.75rem' }}>
+                          <td style={{
+                            padding: '0.4rem 0.5rem', textAlign: 'right',
+                            color: '#94a3b8', fontSize: '0.75rem',
+                          }}>
                             {item.pct}%
                           </td>
                         </tr>
@@ -756,13 +846,12 @@ export default function ColombiaMap({
               )}
             </div>
 
-
           </div>
         )}
-      </div> {/* END colombia-map-layout */}
+      </div>
+      {/* END colombia-map-layout */}
 
-
-      {/* ── Legend ── */}
+      {/* Legend */}
       <div className="colombia-map-legend">
         <span className="legend-label">Menos casos</span>
         <div className="legend-bar">
@@ -779,8 +868,7 @@ export default function ColombiaMap({
         <span className="legend-max">({maxCasos.toLocaleString()} max)</span>
       </div>
 
-
-      {/* ── Top departments ── */}
+      {/* Top Departamentos */}
       <div className="colombia-map-ranking">
         <div className="ranking-title">🏆 Top Departamentos</div>
         {Object.entries(departmentData)
@@ -792,7 +880,10 @@ export default function ColombiaMap({
               <div
                 key={name}
                 className={`ranking-item ${
-                  selectedDepartment && normalizeName(selectedDepartment) === normalizeName(name) ? 'ranking-active' : ''
+                  selectedDepartment &&
+                  normalizeName(selectedDepartment) === normalizeName(name)
+                    ? 'ranking-active'
+                    : ''
                 }`}
                 onClick={() => onDepartmentClick(name)}
                 style={{ animationDelay: `${0.6 + idx * 0.07}s` }}
@@ -812,6 +903,7 @@ export default function ColombiaMap({
             );
           })}
       </div>
+
     </div>
   );
 }

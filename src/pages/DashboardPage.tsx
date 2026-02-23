@@ -13,7 +13,10 @@ import {
 } from 'recharts';
 import ColombiaMap from '../components/ColombiaMap';
 
-const CHART_COLORS = ['#0d9488', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#22c55e', '#ec4899', '#f97316', '#6366f1'];
+const CHART_COLORS = [
+  '#0d9488', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6',
+  '#06b6d4', '#22c55e', '#ec4899', '#f97316', '#6366f1',
+];
 
 const TOOLTIP_STYLE = {
   borderRadius: 10,
@@ -44,6 +47,7 @@ interface DashboardFilters {
   tutelaUsuario: string;
   codigoServicio: string;
   regionalNormalizada: string;
+  numeroDERiesgos: string;
 }
 
 const emptyFilters: DashboardFilters = {
@@ -63,22 +67,27 @@ const emptyFilters: DashboardFilters = {
   tutelaUsuario: '',
   codigoServicio: '',
   regionalNormalizada: '',
+  numeroDERiesgos: '',
 };
+
+const PATIENT_PAGE_SIZES = [25, 50, 100];
 
 export default function DashboardPage() {
   const { user } = useAuth();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [allCancerRecords, setAllCancerRecords] = useState<any[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [allArthritisRecords, setAllArthritisRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState<DashboardFilters>(emptyFilters);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
-
   const [hoveredRegionIdx, setHoveredRegionIdx] = useState<number | null>(null);
 
+  // ── Tabla de pacientes ──
+  const [patientPage, setPatientPage] = useState(1);
+  const [patientPageSize, setPatientPageSize] = useState(25);
+
+  // ── Opciones de filtros ──
   const [departamentos, setDepartamentos] = useState<string[]>([]);
   const [tiposServicio, setTiposServicio] = useState<string[]>([]);
   const [tiposContrato, setTiposContrato] = useState<string[]>([]);
@@ -93,6 +102,7 @@ export default function DashboardPage() {
   const [codigosServicio, setCodigosServicio] = useState<string[]>([]);
   const [regionalizadas, setRegionalizadas] = useState<string[]>([]);
 
+  // ============ CARGA DE DATOS ============
   const loadData = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError('');
@@ -104,17 +114,22 @@ export default function DashboardPage() {
       setAllCancerRecords(cancerRecords);
       setAllArthritisRecords(arthritisRecords);
 
-      const allRecords = [...cancerRecords, ...arthritisRecords];
+      const allRec = [...cancerRecords, ...arthritisRecords];
 
       const distinct = computeAllDistinctValues(cancerRecords, [
-        'epcDepartamento', 'tipoDocumento', 'epcCiudad', 'estado',
-        'regionalNormalizada',
+        'epcDepartamento', 'tipoDocumento', 'epcCiudad', 'estado', 'regionalNormalizada',
       ] as any);
 
-      const extraFields = ['tipoServicio', 'tipoContrato', 'periodo', 'codDiagnostico', 'estadoAuditoria', 'ciudadPrestador', 'razonSocial', 'codigoServicio'];
+      const extraFields = [
+        'tipoServicio', 'tipoContrato', 'periodo', 'codDiagnostico',
+        'estadoAuditoria', 'ciudadPrestador', 'razonSocial', 'codigoServicio',
+      ];
       extraFields.forEach(f => {
         const s = new Set<string>();
-        allRecords.forEach((r: any) => { const v = r[f]; if (v != null && typeof v === 'string' && v.trim()) s.add(v.trim()); });
+        allRec.forEach((r: any) => {
+          const v = r[f];
+          if (v != null && typeof v === 'string' && v.trim()) s.add(v.trim());
+        });
         distinct[f] = Array.from(s).sort();
       });
 
@@ -140,12 +155,14 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // ============ RECORDS BASE ============
   const allRecords = useMemo(() => {
     if (filters.tipoRegistro === 'cancer') return allCancerRecords;
     if (filters.tipoRegistro === 'arthritis') return allArthritisRecords;
     return [...allCancerRecords, ...allArthritisRecords];
   }, [filters.tipoRegistro, allCancerRecords, allArthritisRecords]);
 
+  // ============ FILTRADO ============
   const filteredRecords = useMemo(() => {
     return allRecords.filter(r => {
       if (filters.epcDepartamento && r.epcDepartamento !== filters.epcDepartamento) return false;
@@ -163,6 +180,7 @@ export default function DashboardPage() {
       if (filters.tutelaUsuario && r.tutelaUsuario !== filters.tutelaUsuario) return false;
       if (filters.codigoServicio && r.codigoServicio !== filters.codigoServicio) return false;
       if (filters.regionalNormalizada && r.regionalNormalizada !== filters.regionalNormalizada) return false;
+      if (filters.numeroDERiesgos && (r as any).numeroDERiesgos !== filters.numeroDERiesgos) return false;
       return true;
     });
   }, [allRecords, filters]);
@@ -351,11 +369,11 @@ export default function DashboardPage() {
       .sort((a, b) => b.value - a.value);
   }, [filteredRecords]);
 
-  // ============ TIPOS DE CÁNCER — ✅ CORREGIDO: tipoDeCancer ============
+  // ============ TIPOS DE CÁNCER ============
   const cancerTypesChart = useMemo(() => {
     const counts: Record<string, number> = {};
     filteredRecords.forEach(r => {
-      const tipo = ((r as any).tipoDeCancer || '').trim(); // ← campo correcto
+      const tipo = ((r as any).tipoDeCancer || '').trim();
       if (tipo) counts[tipo] = (counts[tipo] || 0) + 1;
     });
     return Object.entries(counts)
@@ -380,7 +398,24 @@ export default function DashboardPage() {
       .sort((a, b) => b.value - a.value);
   }, [filteredRecords]);
 
-  // ============ MAP DATA — ✅ CORREGIDO: hombres/mujeres desde sexo ============
+  // ============ DISTRIBUCIÓN N° DE RIESGO ============
+  const riskDistributionData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredRecords.forEach(r => {
+      const riesgo = ((r as any).numeroDERiesgos || '').trim();
+      if (riesgo) counts[riesgo] = (counts[riesgo] || 0) + 1;
+    });
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    return Object.entries(counts)
+      .map(([riesgo, count]) => ({
+        riesgo,
+        count,
+        pct: total > 0 ? ((count / total) * 100).toFixed(1) : '0.0',
+      }))
+      .sort((a, b) => Number(a.riesgo) - Number(b.riesgo));
+  }, [filteredRecords]);
+
+  // ============ MAP DATA ============
   const recordsForMap = useMemo(() => {
     return allRecords.filter(r => {
       if (filters.tipoServicio && r.tipoServicio !== filters.tipoServicio) return false;
@@ -405,7 +440,7 @@ export default function DashboardPage() {
     const map: Record<string, {
       casos: number; valorTotal: number; pacientes: Set<string>;
       conTutela: number; sinTutela: number;
-      hombres: number; mujeres: number;           // ← NUEVO
+      hombres: number; mujeres: number;
       tipoServicios: Record<string, number>;
       agrupadorServicios: Record<string, number>;
     }> = {};
@@ -415,21 +450,18 @@ export default function DashboardPage() {
       if (!map[depto]) map[depto] = {
         casos: 0, valorTotal: 0, pacientes: new Set(),
         conTutela: 0, sinTutela: 0,
-        hombres: 0, mujeres: 0,                   // ← NUEVO
+        hombres: 0, mujeres: 0,
         tipoServicios: {},
         agrupadorServicios: {},
       };
-
       map[depto].casos += 1;
       map[depto].valorTotal += r.valorTotal || 0;
       if (r.numeroDocumento) map[depto].pacientes.add(r.numeroDocumento);
 
-      // ── Sexo ── ✅ NUEVO
       const sexo = (r.sexo || '').trim().toLowerCase();
       if (sexo === 'masculino') map[depto].hombres += 1;
       else if (sexo === 'femenino') map[depto].mujeres += 1;
 
-      // ── Tutela ──
       const tutUsuario = String(r.tutelaUsuario || '').toUpperCase().trim();
       const tutCampo = String(r.tutela || '').toUpperCase().trim();
       const esSinTutelaUsuario = tutUsuario === '' || tutUsuario === 'SIN TUTELA' || tutUsuario === 'NO' || tutUsuario === 'N' || tutUsuario === '0' || tutUsuario === 'FALSE';
@@ -440,7 +472,6 @@ export default function DashboardPage() {
         map[depto].sinTutela += 1;
       }
 
-      // ── Tipo servicio ──
       const ts = (r.tipoServicio || '').trim();
       if (ts) {
         const tsKey = ts.charAt(0).toUpperCase() + ts.slice(1).toLowerCase();
@@ -449,7 +480,6 @@ export default function DashboardPage() {
         map[depto].tipoServicios['Sin tipo'] = (map[depto].tipoServicios['Sin tipo'] || 0) + 1;
       }
 
-      // ── Agrupador ──
       const agr = (r.agrupadorServicios || '').trim();
       if (agr) {
         const agrKey = agr.charAt(0).toUpperCase() + agr.slice(1).toLowerCase();
@@ -460,7 +490,7 @@ export default function DashboardPage() {
     const result: Record<string, {
       casos: number; valorTotal: number; pacientes: number;
       conTutela: number; sinTutela: number;
-      hombres: number; mujeres: number;           // ← NUEVO
+      hombres: number; mujeres: number;
       tipoServicios: Record<string, number>;
       agrupadorServicios: Record<string, number>;
     }> = {};
@@ -472,8 +502,8 @@ export default function DashboardPage() {
         pacientes: v.pacientes.size,
         conTutela: v.conTutela,
         sinTutela: v.sinTutela,
-        hombres: v.hombres,                       // ← NUEVO
-        mujeres: v.mujeres,                       // ← NUEVO
+        hombres: v.hombres,
+        mujeres: v.mujeres,
         tipoServicios: v.tipoServicios,
         agrupadorServicios: v.agrupadorServicios,
       };
@@ -481,14 +511,38 @@ export default function DashboardPage() {
     return result;
   }, [recordsForMap]);
 
-  const activeFilterCount = Object.entries(filters).filter(([k, v]) => k !== 'tipoRegistro' && v).length + (filters.tipoRegistro !== 'all' ? 1 : 0);
+  // ============ TABLA DE PACIENTES ============
+  const patientTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredRecords.length / patientPageSize)),
+    [filteredRecords.length, patientPageSize],
+  );
+
+  const patientPageData = useMemo(() => {
+    const start = (patientPage - 1) * patientPageSize;
+    return filteredRecords.slice(start, start + patientPageSize);
+  }, [filteredRecords, patientPage, patientPageSize]);
+
+  // Reset página al cambiar filtros o pageSize
+  useEffect(() => { setPatientPage(1); }, [filters, patientPageSize]);
+
+  // ============ FILTER HELPERS ============
+  const activeFilterCount =
+    Object.entries(filters).filter(([k, v]) => k !== 'tipoRegistro' && v).length +
+    (filters.tipoRegistro !== 'all' ? 1 : 0);
+
   const clearFilters = () => setFilters(emptyFilters);
+
   const updateFilter = useCallback((key: keyof DashboardFilters, value: string | RecordType) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   }, []);
+
   const removeFilter = (key: keyof DashboardFilters) => {
     updateFilter(key, key === 'tipoRegistro' ? 'all' : '');
   };
+
+  const handleRiskClick = useCallback((riesgo: string) => {
+    updateFilter('numeroDERiesgos', filters.numeroDERiesgos === riesgo ? '' : riesgo);
+  }, [filters.numeroDERiesgos, updateFilter]);
 
   const handleMapDepartmentClick = useCallback((departmentName: string) => {
     if (!departmentName) {
@@ -512,6 +566,7 @@ export default function DashboardPage() {
     filters.tutelaUsuario, filters.codigoServicio, filters.regionalNormalizada,
   ].filter(v => v).length > 0;
 
+  // ============ LOADING / ERROR ============
   if (loading) {
     return (
       <div className="page">
@@ -527,22 +582,30 @@ export default function DashboardPage() {
     return (
       <div className="page">
         <div className="alert alert-error">{error}</div>
-        <button onClick={() => loadData(true)} className="btn btn-primary"><HiRefresh /> Reintentar</button>
+        <button onClick={() => loadData(true)} className="btn btn-primary">
+          <HiRefresh /> Reintentar
+        </button>
       </div>
     );
   }
 
+  // ============ RENDER ============
   return (
     <div className="page">
+
+      {/* ── Header ── */}
       <div className="page-header">
         <div>
           <h1>
-            <HiChartBar size={28} className="icon-bounce" style={{ color: 'var(--brand)', verticalAlign: 'middle', marginRight: '0.5rem' }} />
+            <HiChartBar size={28} className="icon-bounce"
+              style={{ color: 'var(--brand)', verticalAlign: 'middle', marginRight: '0.5rem' }} />
             Dashboard {filters.tipoRegistro === 'cancer' ? 'Oncológico' : filters.tipoRegistro === 'arthritis' ? 'Artritis' : 'General'}
           </h1>
           <p className="page-subtitle">
             {'Bienvenido, '}
-            <strong style={{ color: 'var(--text-tertiary)', fontWeight: 500 }}>{user?.displayName ?? user?.email}</strong>
+            <strong style={{ color: 'var(--text-tertiary)', fontWeight: 500 }}>
+              {user?.displayName ?? user?.email}
+            </strong>
           </p>
         </div>
         <div className="header-actions">
@@ -552,7 +615,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ============ FILTROS PRINCIPALES ============ */}
+      {/* ── Filtros principales ── */}
       <div className="dashboard-filters">
         <div className="filter-field">
           <label><HiFilter size={14} style={{ display: 'inline', marginRight: '0.25rem' }} />Tipo</label>
@@ -605,8 +668,13 @@ export default function DashboardPage() {
           </select>
         </div>
         <div className="filter-actions-row">
-          <button onClick={() => setAdvancedFiltersOpen(!advancedFiltersOpen)} className="btn btn-outline" style={{ fontSize: '0.8125rem', padding: '0.4375rem 0.625rem' }}>
-            {advancedFiltersOpen ? '▼' : '▶'} Avanzado {advancedFiltersActive && <span style={{ color: 'var(--brand)', fontWeight: 'bold' }}>●</span>}
+          <button
+            onClick={() => setAdvancedFiltersOpen(!advancedFiltersOpen)}
+            className="btn btn-outline"
+            style={{ fontSize: '0.8125rem', padding: '0.4375rem 0.625rem' }}
+          >
+            {advancedFiltersOpen ? '▼' : '▶'} Avanzado{' '}
+            {advancedFiltersActive && <span style={{ color: 'var(--brand)', fontWeight: 'bold' }}>●</span>}
           </button>
           {activeFilterCount > 0 && (
             <button onClick={clearFilters} className="btn btn-outline">
@@ -616,7 +684,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ============ FILTROS AVANZADOS ============ */}
+      {/* ── Filtros avanzados ── */}
       {advancedFiltersOpen && (
         <div className="dashboard-filters-advanced">
           <div className="filter-field">
@@ -642,7 +710,12 @@ export default function DashboardPage() {
           </div>
           <div className="filter-field">
             <label>N° Factura</label>
-            <input type="text" placeholder="Buscar..." value={filters.numeroFactura} onChange={e => updateFilter('numeroFactura', e.target.value)} />
+            <input
+              type="text"
+              placeholder="Buscar..."
+              value={filters.numeroFactura}
+              onChange={e => updateFilter('numeroFactura', e.target.value)}
+            />
           </div>
           <div className="filter-field">
             <label>Ciudad Paciente</label>
@@ -683,61 +756,115 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ============ TAGS DE FILTROS ACTIVOS ============ */}
+      {/* ── Tags de filtros activos ── */}
       {activeFilterCount > 0 && (
         <div className="active-filters">
           {filters.tipoRegistro !== 'all' && (
-            <span className="filter-tag">Tipo: {filters.tipoRegistro === 'cancer' ? 'Cáncer' : 'Artritis'} <button onClick={() => removeFilter('tipoRegistro')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Tipo: {filters.tipoRegistro === 'cancer' ? 'Cáncer' : 'Artritis'}
+              <button onClick={() => removeFilter('tipoRegistro')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.epcDepartamento && (
-            <span className="filter-tag">Depto: {filters.epcDepartamento} <button onClick={() => removeFilter('epcDepartamento')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Depto: {filters.epcDepartamento}
+              <button onClick={() => removeFilter('epcDepartamento')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.tipoServicio && (
-            <span className="filter-tag">Servicio: {filters.tipoServicio} <button onClick={() => removeFilter('tipoServicio')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Servicio: {filters.tipoServicio}
+              <button onClick={() => removeFilter('tipoServicio')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.tipoContrato && (
-            <span className="filter-tag">Contrato: {filters.tipoContrato} <button onClick={() => removeFilter('tipoContrato')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Contrato: {filters.tipoContrato}
+              <button onClick={() => removeFilter('tipoContrato')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.estado && (
-            <span className="filter-tag">Estado: {filters.estado} <button onClick={() => removeFilter('estado')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Estado: {filters.estado}
+              <button onClick={() => removeFilter('estado')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.periodo && (
-            <span className="filter-tag">Periodo: {filters.periodo} <button onClick={() => removeFilter('periodo')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Periodo: {filters.periodo}
+              <button onClick={() => removeFilter('periodo')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.codDiagnostico && (
-            <span className="filter-tag">Dx: {filters.codDiagnostico} <button onClick={() => removeFilter('codDiagnostico')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Dx: {filters.codDiagnostico}
+              <button onClick={() => removeFilter('codDiagnostico')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.estadoAuditoria && (
-            <span className="filter-tag">Auditoria: {filters.estadoAuditoria} <button onClick={() => removeFilter('estadoAuditoria')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Auditoria: {filters.estadoAuditoria}
+              <button onClick={() => removeFilter('estadoAuditoria')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.ciudadPrestador && (
-            <span className="filter-tag">Ciudad Prest.: {filters.ciudadPrestador} <button onClick={() => removeFilter('ciudadPrestador')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Ciudad Prest.: {filters.ciudadPrestador}
+              <button onClick={() => removeFilter('ciudadPrestador')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.tipoDocumento && (
-            <span className="filter-tag">Tipo Doc.: {filters.tipoDocumento} <button onClick={() => removeFilter('tipoDocumento')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Tipo Doc.: {filters.tipoDocumento}
+              <button onClick={() => removeFilter('tipoDocumento')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.numeroFactura && (
-            <span className="filter-tag">Factura: {filters.numeroFactura} <button onClick={() => removeFilter('numeroFactura')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Factura: {filters.numeroFactura}
+              <button onClick={() => removeFilter('numeroFactura')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.epcCiudad && (
-            <span className="filter-tag">Cd. Pac.: {filters.epcCiudad} <button onClick={() => removeFilter('epcCiudad')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Cd. Pac.: {filters.epcCiudad}
+              <button onClick={() => removeFilter('epcCiudad')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.razonSocial && (
-            <span className="filter-tag">Institucion: {filters.razonSocial.substring(0, 15)}... <button onClick={() => removeFilter('razonSocial')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Institucion: {filters.razonSocial.substring(0, 15)}...
+              <button onClick={() => removeFilter('razonSocial')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.codigoServicio && (
-            <span className="filter-tag">Cod.Serv.: {filters.codigoServicio} <button onClick={() => removeFilter('codigoServicio')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Cod.Serv.: {filters.codigoServicio}
+              <button onClick={() => removeFilter('codigoServicio')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.regionalNormalizada && (
-            <span className="filter-tag">Regional: {filters.regionalNormalizada} <button onClick={() => removeFilter('regionalNormalizada')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Regional: {filters.regionalNormalizada}
+              <button onClick={() => removeFilter('regionalNormalizada')}><HiX size={12} /></button>
+            </span>
           )}
           {filters.tutelaUsuario && (
-            <span className="filter-tag">Tutela: {filters.tutelaUsuario} <button onClick={() => removeFilter('tutelaUsuario')}><HiX size={12} /></button></span>
+            <span className="filter-tag">
+              Tutela: {filters.tutelaUsuario}
+              <button onClick={() => removeFilter('tutelaUsuario')}><HiX size={12} /></button>
+            </span>
+          )}
+          {filters.numeroDERiesgos && (
+            <span className="filter-tag">
+              Riesgo N°: {filters.numeroDERiesgos}
+              <button onClick={() => removeFilter('numeroDERiesgos')}><HiX size={12} /></button>
+            </span>
           )}
         </div>
       )}
 
-      {/* ============ KPI CARDS ============ */}
+      {/* ── KPI Cards ── */}
       <div className="kpi-row">
         <div className="kpi-card">
           <div className="kpi-main">
@@ -749,9 +876,9 @@ export default function DashboardPage() {
               <div className="kpi-value">{kpis.totalRegistros.toLocaleString()}</div>
             </div>
           </div>
-          <div className="kpi-divider"></div>
+          <div className="kpi-divider" />
           <div className="kpi-detail">
-            <span className="kpi-dot" style={{ background: 'var(--brand)' }}></span>
+            <span className="kpi-dot" style={{ background: 'var(--brand)' }} />
             <span className="kpi-sub">Total de registros</span>
           </div>
         </div>
@@ -766,9 +893,9 @@ export default function DashboardPage() {
               <div className="kpi-value">{kpis.ciudadesUnicas}</div>
             </div>
           </div>
-          <div className="kpi-divider"></div>
+          <div className="kpi-divider" />
           <div className="kpi-detail">
-            <span className="kpi-dot" style={{ background: 'var(--success)' }}></span>
+            <span className="kpi-dot" style={{ background: 'var(--success)' }} />
             <span className="kpi-sub">Ciudades únicas</span>
           </div>
         </div>
@@ -783,9 +910,9 @@ export default function DashboardPage() {
               <div className="kpi-value">{kpis.pacientesUnicos.toLocaleString()}</div>
             </div>
           </div>
-          <div className="kpi-divider"></div>
+          <div className="kpi-divider" />
           <div className="kpi-detail">
-            <span className="kpi-dot" style={{ background: 'var(--accent)' }}></span>
+            <span className="kpi-dot" style={{ background: 'var(--accent)' }} />
             <span className="kpi-sub">Documentos unicos</span>
           </div>
         </div>
@@ -800,9 +927,9 @@ export default function DashboardPage() {
               <div className="kpi-value">{kpis.departamentosUnicos}</div>
             </div>
           </div>
-          <div className="kpi-divider"></div>
+          <div className="kpi-divider" />
           <div className="kpi-detail">
-            <span className="kpi-dot" style={{ background: 'var(--warning)' }}></span>
+            <span className="kpi-dot" style={{ background: 'var(--warning)' }} />
             <span className="kpi-sub">Regiones</span>
           </div>
         </div>
@@ -817,9 +944,9 @@ export default function DashboardPage() {
               <div className="kpi-value">{kpis.edadPromedio.toFixed(1)}</div>
             </div>
           </div>
-          <div className="kpi-divider"></div>
+          <div className="kpi-divider" />
           <div className="kpi-detail">
-            <span className="kpi-dot" style={{ background: 'var(--info)' }}></span>
+            <span className="kpi-dot" style={{ background: 'var(--info)' }} />
             <span className="kpi-sub">Años</span>
           </div>
         </div>
@@ -834,36 +961,43 @@ export default function DashboardPage() {
               <div className="kpi-value">{kpis.conDiscapacidad.toLocaleString()}</div>
             </div>
           </div>
-          <div className="kpi-divider"></div>
+          <div className="kpi-divider" />
           <div className="kpi-detail">
-            <span className="kpi-dot" style={{ background: 'var(--danger)' }}></span>
-            <span className="kpi-sub">{kpis.totalRegistros > 0 ? ((kpis.conDiscapacidad / kpis.totalRegistros) * 100).toFixed(1) : '0'}% del total</span>
+            <span className="kpi-dot" style={{ background: 'var(--danger)' }} />
+            <span className="kpi-sub">
+              {kpis.totalRegistros > 0 ? ((kpis.conDiscapacidad / kpis.totalRegistros) * 100).toFixed(1) : '0'}% del total
+            </span>
           </div>
         </div>
       </div>
 
-      {/* ============ MAPA ============ */}
+      {/* ── Mapa ── */}
       <ColombiaMap
         departmentData={departmentMapData}
         onDepartmentClick={handleMapDepartmentClick}
         selectedDepartment={filters.epcDepartamento}
         nombreEstablecimientoData={nombreEstablecimientoChart}
+        riskData={riskDistributionData}
+        onRiskClick={handleRiskClick}
+        selectedRisk={filters.numeroDERiesgos}
       />
 
       {filteredRecords.length === 0 ? (
         <div className="chart-card" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
           <HiDocumentReport size={48} style={{ color: 'var(--text-muted)', marginBottom: '1rem', opacity: 0.4 }} />
-          <h3 style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 700, fontSize: '1.125rem' }}>Sin datos para mostrar</h3>
+          <h3 style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 700, fontSize: '1.125rem' }}>
+            Sin datos para mostrar
+          </h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem', maxWidth: 400, margin: '0 auto' }}>
             {allRecords.length === 0
-              ? 'No hay registros en la base de datos. Importa datos desde la seccion de Registro Cancer o Artritis.'
-              : 'Los filtros seleccionados no coinciden con ningun registro. Ajusta los filtros.'}
+              ? 'No hay registros en la base de datos. Importa datos desde la sección de Registro Cáncer o Artritis.'
+              : 'Los filtros seleccionados no coinciden con ningún registro. Ajusta los filtros.'}
           </p>
         </div>
       ) : (
         <div className="charts-section">
 
-          {/* ============ GÉNERO Y DIVERSIDAD ============ */}
+          {/* ── Género y Diversidad ── */}
           <div className="charts-row" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
             <div className="chart-card" style={{ animationDelay: '0.1s' }}>
               <div className="chart-header">
@@ -875,17 +1009,32 @@ export default function DashboardPage() {
               </div>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
+
                   <defs>
-                    {[['#14b8a6', '#0d9488'], ['#60a5fa', '#3b82f6'], ['#fbbf24', '#f59e0b'], ['#f87171', '#ef4444'], ['#a78bfa', '#8b5cf6']].map(([light, dark], i) => (
+                    {[
+                      ['#14b8a6', '#0d9488'], ['#60a5fa', '#3b82f6'], ['#fbbf24', '#f59e0b'],
+                      ['#f87171', '#ef4444'], ['#a78bfa', '#8b5cf6'], ['#22d3ee', '#06b6d4'],
+                      ['#4ade80', '#22c55e'], ['#f472b6', '#ec4899'], ['#fb923c', '#f97316'],
+                      ['#818cf8', '#6366f1'],
+                    ].map(([light, dark], i) => (
                       <linearGradient key={`gen-${i}`} id={`genero-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
                         <stop offset="0%" stopColor={light} stopOpacity={1} />
                         <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
                       </linearGradient>
                     ))}
                   </defs>
-                  <Pie data={generoChart} cx="50%" cy="50%" innerRadius={60} outerRadius={110} paddingAngle={4} dataKey="value" cornerRadius={6}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`} labelLine={false}>
-                    {generoChart.map((_, i) => <Cell key={`gen-cell-${i}`} fill={`url(#genero-pie-grad-${i % 5})`} />)}
+
+                  <Pie
+                    data={generoChart} cx="50%" cy="50%"
+                    innerRadius={60} outerRadius={110}
+                    paddingAngle={4} dataKey="value"
+                    cornerRadius={6}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
+                    labelLine={false}
+                  >
+                    {generoChart.map((_, i) => (
+                      <Cell key={`gen-cell-${i}`} fill={`url(#genero-pie-grad-${i % 10})`} />
+                    ))}
                   </Pie>
                   <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
                 </PieChart>
@@ -895,8 +1044,8 @@ export default function DashboardPage() {
             <div className="chart-card" style={{ animationDelay: '0.18s' }}>
               <div className="chart-header">
                 <div>
-                  <div className="chart-title">Diversidad LGTBIQ+</div>
-                  <div className="chart-subtitle">Distribución de pacientes LGTBIQ+</div>
+                  <div className="chart-title">Diversidad LGTBIQ</div>
+                  <div className="chart-subtitle">Distribución de pacientes LGTBIQ</div>
                 </div>
                 <span className="chart-badge">{lgtbiqChart.length} categorías</span>
               </div>
@@ -907,14 +1056,16 @@ export default function DashboardPage() {
                   <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
                   <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
                   <Bar dataKey="value" name="Registros" radius={[0, 6, 6, 0]} barSize={30}>
-                    {lgtbiqChart.map((_, i) => <Cell key={`lgtbiq-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                    {lgtbiqChart.map((_, i) => (
+                      <Cell key={`lgtbiq-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* ============ CURSO DE VIDA Y EDAD ============ */}
+          {/* ── Curso de Vida y Edad ── */}
           <div className="charts-row" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
             <div className="chart-card" style={{ animationDelay: '0.26s' }}>
               <div className="chart-header">
@@ -927,16 +1078,28 @@ export default function DashboardPage() {
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <defs>
-                    {[['#14b8a6', '#0d9488'], ['#60a5fa', '#3b82f6'], ['#fbbf24', '#f59e0b'], ['#f87171', '#ef4444'], ['#a78bfa', '#8b5cf6']].map(([light, dark], i) => (
+                    {[
+                      ['#14b8a6', '#0d9488'], ['#60a5fa', '#3b82f6'], ['#fbbf24', '#f59e0b'],
+                      ['#f87171', '#ef4444'], ['#a78bfa', '#8b5cf6'], ['#22d3ee', '#06b6d4'],
+                      ['#4ade80', '#22c55e'], ['#f472b6', '#ec4899'], ['#fb923c', '#f97316'],
+                      ['#818cf8', '#6366f1'],
+                    ].map(([light, dark], i) => (
                       <linearGradient key={`cv-${i}`} id={`curso-vida-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
                         <stop offset="0%" stopColor={light} stopOpacity={1} />
                         <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
                       </linearGradient>
                     ))}
                   </defs>
-                  <Pie data={cursoDeVidaChart} cx="50%" cy="50%" innerRadius={60} outerRadius={110} paddingAngle={4} dataKey="value" cornerRadius={6}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`} labelLine={false}>
-                    {cursoDeVidaChart.map((_, i) => <Cell key={`cv-cell-${i}`} fill={`url(#curso-vida-pie-grad-${i % 5})`} />)}
+                  <Pie
+                    data={cursoDeVidaChart} cx="50%" cy="50%"
+                    innerRadius={60} outerRadius={110}
+                    paddingAngle={4} dataKey="value" cornerRadius={6}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
+                    labelLine={false}
+                  >
+                    {cursoDeVidaChart.map((_, i) => (
+                      <Cell key={`cv-cell-${i}`} fill={`url(#curso-vida-pie-grad-${i % 10})`} />
+                    ))}
                   </Pie>
                   <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
                 </PieChart>
@@ -958,20 +1121,21 @@ export default function DashboardPage() {
                   <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
                   <Bar dataKey="value" name="Registros" radius={[6, 6, 0, 0]} barSize={40}>
-                    {edadChart.map((_, i) => <Cell key={`edad-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                    {edadChart.map((_, i) => (
+                      <Cell key={`edad-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* ============ EPC_DEPARTAMENTO / EPC_CIUDAD / REGIONAL_NORMALIZADA ============ */}
+          {/* ── EPC Departamento / EPC Ciudad / Regional ── */}
           <div className="charts-row" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-
             <div className="chart-card" style={{ animationDelay: '0.2s' }}>
               <div className="chart-header">
                 <div>
-                  <div className="chart-title">EPC — Departamento</div>
+                  <div className="chart-title">EPC Departamento</div>
                   <div className="chart-subtitle">Pacientes únicos por departamento</div>
                 </div>
                 <span className="chart-badge">{departamentoPacientesChart.length} deptos</span>
@@ -1000,7 +1164,7 @@ export default function DashboardPage() {
             <div className="chart-card" style={{ animationDelay: '0.28s' }}>
               <div className="chart-header">
                 <div>
-                  <div className="chart-title">EPC — Ciudad</div>
+                  <div className="chart-title">EPC Ciudad</div>
                   <div className="chart-subtitle">Pacientes únicos por ciudad</div>
                 </div>
                 <span className="chart-badge">{ciudadPacientesChart.length} ciudades</span>
@@ -1036,20 +1200,23 @@ export default function DashboardPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <defs>
-                      {[['#14b8a6', '#0d9488'], ['#60a5fa', '#3b82f6'], ['#fbbf24', '#f59e0b'], ['#f87171', '#ef4444'], ['#a78bfa', '#8b5cf6'],
-                        ['#22d3ee', '#06b6d4'], ['#4ade80', '#22c55e'], ['#f472b6', '#ec4899'], ['#fb923c', '#f97316'], ['#818cf8', '#6366f1']].map(([light, dark], i) => (
-                          <linearGradient key={`rpg-${i}`} id={`region-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0%" stopColor={light} stopOpacity={1} />
-                            <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
-                          </linearGradient>
-                        ))}
+                      {[
+                        ['#14b8a6', '#0d9488'], ['#60a5fa', '#3b82f6'], ['#fbbf24', '#f59e0b'],
+                        ['#f87171', '#ef4444'], ['#a78bfa', '#8b5cf6'], ['#22d3ee', '#06b6d4'],
+                        ['#4ade80', '#22c55e'], ['#f472b6', '#ec4899'], ['#fb923c', '#f97316'],
+                        ['#818cf8', '#6366f1'],
+                      ].map(([light, dark], i) => (
+                        <linearGradient key={`rpg-${i}`} id={`region-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stopColor={light} stopOpacity={1} />
+                          <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
+                        </linearGradient>
+                      ))}
                       <filter id="regionPieShadow" x="-20%" y="-20%" width="140%" height="140%">
-                        <feDropShadow dx="0" dy="4" stdDeviation="6" floodOpacity="0.18" />
+                        <feDropShadow dx="0" dy="4" stdDeviation="6" floodOpacity={0.18} />
                       </filter>
                     </defs>
                     <Pie
-                      data={regionPacientesChart}
-                      cx="50%" cy="42%"
+                      data={regionPacientesChart} cx="50%" cy="42%"
                       innerRadius={55} outerRadius={100}
                       paddingAngle={4} dataKey="value" cornerRadius={6}
                       animationBegin={200} animationDuration={1400}
@@ -1064,16 +1231,16 @@ export default function DashboardPage() {
                       ))}
                     </Pie>
                     {hoveredRegionIdx !== null && regionPacientesChart[hoveredRegionIdx] && (
-                      <text x="50%" y="39%" textAnchor="middle" dominantBaseline="central"
-                        style={{ fontSize: 26, fontWeight: 800, fill: '#0f172a' }}>
-                        {regionPacientesChart[hoveredRegionIdx].value.toLocaleString()}
-                      </text>
-                    )}
-                    {hoveredRegionIdx !== null && regionPacientesChart[hoveredRegionIdx] && (
-                      <text x="50%" y="47%" textAnchor="middle" dominantBaseline="central"
-                        style={{ fontSize: 11, fontWeight: 600, fill: '#64748b' }}>
-                        {regionPacientesChart[hoveredRegionIdx].name}
-                      </text>
+                      <>
+                        <text x="50%" y="39%" textAnchor="middle" dominantBaseline="central"
+                          style={{ fontSize: 26, fontWeight: 800, fill: '#0f172a' }}>
+                          {regionPacientesChart[hoveredRegionIdx].value.toLocaleString()}
+                        </text>
+                        <text x="50%" y="47%" textAnchor="middle" dominantBaseline="central"
+                          style={{ fontSize: 11, fontWeight: 600, fill: '#64748b' }}>
+                          {regionPacientesChart[hoveredRegionIdx].name}
+                        </text>
+                      </>
                     )}
                     <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Pacientes']} contentStyle={TOOLTIP_STYLE} />
                     <Legend iconType="circle" iconSize={10} wrapperStyle={{ paddingTop: '0.5rem', fontSize: '0.75rem' }} />
@@ -1083,7 +1250,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ============ DISCAPACIDAD Y GRUPOS ÉTNICOS ============ */}
+          {/* ── Discapacidad y Grupos Étnicos ── */}
           <div className="charts-row" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
             <div className="chart-card" style={{ animationDelay: '0.42s' }}>
               <div className="chart-header">
@@ -1100,7 +1267,9 @@ export default function DashboardPage() {
                   <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
                   <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
                   <Bar dataKey="value" name="Registros" radius={[0, 6, 6, 0]} barSize={30}>
-                    {discapacidadChart.map((_, i) => <Cell key={`disc-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                    {discapacidadChart.map((_, i) => (
+                      <Cell key={`disc-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -1117,19 +1286,30 @@ export default function DashboardPage() {
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <defs>
-                    {[['#14b8a6', '#0d9488'], ['#60a5fa', '#3b82f6'], ['#fbbf24', '#f59e0b'], ['#f87171', '#ef4444'], ['#a78bfa', '#8b5cf6'],
-                      ['#22d3ee', '#06b6d4'], ['#4ade80', '#22c55e'], ['#f472b6', '#ec4899'], ['#fb923c', '#f97316'], ['#818cf8', '#6366f1']].map(([light, dark], i) => (
-                        <linearGradient key={`etn-${i}`} id={`etnicos-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
-                          <stop offset="0%" stopColor={light} stopOpacity={1} />
-                          <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
-                        </linearGradient>
-                      ))}
+                    {[
+                      ['#14b8a6', '#0d9488'], ['#60a5fa', '#3b82f6'], ['#fbbf24', '#f59e0b'],
+                      ['#f87171', '#ef4444'], ['#a78bfa', '#8b5cf6'], ['#22d3ee', '#06b6d4'],
+                      ['#4ade80', '#22c55e'], ['#f472b6', '#ec4899'], ['#fb923c', '#f97316'],
+                      ['#818cf8', '#6366f1'],
+                    ].map(([light, dark], i) => (
+                      <linearGradient key={`etn-${i}`} id={`etnicos-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor={light} stopOpacity={1} />
+                        <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
+                      </linearGradient>
+                    ))}
                   </defs>
-                  <Pie data={gruposEtnicosChart} cx="50%" cy="50%" innerRadius={60} outerRadius={110} paddingAngle={4}
-                    dataKey="value" cornerRadius={6}
-                    label={({ name, percent }) => `${name.length > 12 ? name.substring(0, 12) + '...' : name}: ${(percent * 100).toFixed(1)}%`}
-                    labelLine={false}>
-                    {gruposEtnicosChart.map((_, i) => <Cell key={`etn-cell-${i}`} fill={`url(#etnicos-pie-grad-${i % 10})`} />)}
+                  <Pie
+                    data={gruposEtnicosChart} cx="50%" cy="50%"
+                    innerRadius={60} outerRadius={110}
+                    paddingAngle={4} dataKey="value" cornerRadius={6}
+                    label={({ name, percent }) =>
+                      `${name.length > 12 ? name.substring(0, 12) + '...' : name} ${(percent * 100).toFixed(1)}%`
+                    }
+                    labelLine={false}
+                  >
+                    {gruposEtnicosChart.map((_, i) => (
+                      <Cell key={`etn-cell-${i}`} fill={`url(#etnicos-pie-grad-${i % 10})`} />
+                    ))}
                   </Pie>
                   <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
                 </PieChart>
@@ -1137,20 +1317,21 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ============ TIPOS DE CÁNCER ✅ ============ */}
+          {/* ── Tipos de Cáncer ── */}
           {cancerTypesChart.length > 0 && (
             <div className="chart-card" style={{ animationDelay: '0.55s' }}>
               <div className="chart-header">
                 <div>
                   <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: '1.1rem' }}>🎗️</span>
-                    Tipos de Cáncer
+                    <span style={{ fontSize: '1.1rem' }}>🎗️</span> Tipos de Cáncer
                   </div>
                   <div className="chart-subtitle">
                     Distribución de diagnósticos oncológicos · {cancerTypesChart.length} tipos registrados
                   </div>
                 </div>
-                <span className="chart-badge">{cancerTypesChart.reduce((s, d) => s + d.value, 0).toLocaleString()} registros</span>
+                <span className="chart-badge">
+                  {cancerTypesChart.reduce((s, d) => s + d.value, 0).toLocaleString()} registros
+                </span>
               </div>
               <div style={{ overflowY: 'auto', maxHeight: 480, paddingRight: 4 }}>
                 <div style={{ height: Math.max(300, cancerTypesChart.length * 38), minWidth: 0 }}>
@@ -1165,24 +1346,15 @@ export default function DashboardPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
                       <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                       <YAxis
-                        dataKey="name"
-                        type="category"
-                        width={210}
+                        dataKey="name" type="category" width={210}
                         tick={{ fontSize: 9, fill: '#64748b', fontWeight: 500 }}
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={(v: string) => v.length > 32 ? v.substring(0, 32) + '…' : v}
+                        axisLine={false} tickLine={false}
+                        tickFormatter={(v: string) => v.length > 32 ? v.substring(0, 32) : v}
                       />
-                      <Tooltip
-                        formatter={(value: number) => [value.toLocaleString(), 'Registros']}
-                        contentStyle={TOOLTIP_STYLE}
-                      />
+                      <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
                       <Bar
-                        dataKey="value"
-                        name="Registros"
-                        fill="url(#gradCancerTypes)"
-                        radius={[0, 6, 6, 0]}
-                        barSize={26}
+                        dataKey="value" name="Registros"
+                        fill="url(#gradCancerTypes)" radius={[0, 6, 6, 0]} barSize={26}
                         label={{ position: 'right', fontSize: 10, fill: '#64748b', formatter: (v: number) => v.toLocaleString() }}
                       >
                         {cancerTypesChart.map((_, i) => (
@@ -1196,7 +1368,7 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* ============ ENFERMEDADES MÁS COMUNES ============ */}
+          {/* ── Enfermedades Diagnosticadas ── */}
           <div className="chart-card" style={{ animationDelay: '0.58s' }}>
             <div className="chart-header">
               <div>
@@ -1210,12 +1382,9 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <YAxis
-                  dataKey="name"
-                  type="category"
-                  width={180}
+                  dataKey="name" type="category" width={180}
                   tick={{ fontSize: 9, fill: '#64748b', fontWeight: 500 }}
-                  axisLine={false}
-                  tickLine={false}
+                  axisLine={false} tickLine={false}
                   tickFormatter={(v: string) => v.length > 25 ? v.substring(0, 25) + '...' : v}
                 />
                 <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
@@ -1228,11 +1397,229 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </div>
 
-          {/* ============ INTERVENCIONES POR PROCESO ============ */}
-          
-
         </div>
       )}
+
+      {/* ── Tabla de Pacientes ── */}
+      {filteredRecords.length > 0 && (
+        <div className="chart-card" style={{ marginTop: '1.5rem', animationDelay: '0.65s' }}>
+          {/* Cabecera */}
+          <div className="chart-header" style={{ marginBottom: '1rem' }}>
+            <div>
+              <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <HiUserGroup size={18} style={{ color: 'var(--brand)' }} />
+                Listado de Pacientes
+              </div>
+              <div className="chart-subtitle">
+                {filteredRecords.length.toLocaleString()} registros · Página {patientPage} de {patientTotalPages}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 500 }}>
+                Filas:
+              </label>
+              <select
+                value={patientPageSize}
+                onChange={e => setPatientPageSize(Number(e.target.value))}
+                style={{
+                  fontSize: '0.8rem', padding: '0.25rem 0.5rem',
+                  borderRadius: 6, border: '1px solid #e2e8f0',
+                  background: '#fff', color: '#374151', cursor: 'pointer',
+                }}
+              >
+                {PATIENT_PAGE_SIZES.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Tabla */}
+          <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid #f1f5f9' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', minWidth: 900 }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                  {[
+                    'N° Documento', 'Primer Apellido', 'Segundo Apellido',
+                    'Primer Nombre', 'Segundo Nombre', 'Edad',
+                    'Curso de Vida', 'Sexo', 'Nombre Establecimiento',
+                    'EPC Ciudad', 'EPC Departamento',
+                  ].map(col => (
+                    <th
+                      key={col}
+                      style={{
+                        padding: '0.6rem 0.75rem',
+                        textAlign: 'left',
+                        color: '#64748b',
+                        fontWeight: 600,
+                        fontSize: '0.72rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {patientPageData.map((r: any, i: number) => (
+                  <tr
+                    key={r.id ?? i}
+                    style={{ borderBottom: '1px solid #f8fafc', transition: 'background 0.12s' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <td style={{ padding: '0.5rem 0.75rem', color: '#0d9488', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      {r.numeroDocumento || '—'}
+                    </td>
+                    <td style={{ padding: '0.5rem 0.75rem', color: '#0f172a', fontWeight: 500 }}>
+                      {r.primerApellido || '—'}
+                    </td>
+                    <td style={{ padding: '0.5rem 0.75rem', color: '#374151' }}>
+                      {r.segundoApellido || '—'}
+                    </td>
+                    <td style={{ padding: '0.5rem 0.75rem', color: '#0f172a', fontWeight: 500 }}>
+                      {r.primerNombre || '—'}
+                    </td>
+                    <td style={{ padding: '0.5rem 0.75rem', color: '#374151' }}>
+                      {r.segundoNombre || '—'}
+                    </td>
+                    <td style={{ padding: '0.5rem 0.75rem', color: '#374151', textAlign: 'center' }}>
+                      {r.edad ?? '—'}
+                    </td>
+                    <td style={{ padding: '0.5rem 0.75rem', color: '#374151' }}>
+                      {r.cursoDeVida || '—'}
+                    </td>
+                    <td style={{ padding: '0.5rem 0.75rem' }}>
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: 20,
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        background: r.sexo?.toLowerCase() === 'masculino'
+                          ? 'rgba(59,130,246,0.1)'
+                          : r.sexo?.toLowerCase() === 'femenino'
+                            ? 'rgba(236,72,153,0.1)'
+                            : 'rgba(100,116,139,0.1)',
+                        color: r.sexo?.toLowerCase() === 'masculino'
+                          ? '#3b82f6'
+                          : r.sexo?.toLowerCase() === 'femenino'
+                            ? '#ec4899'
+                            : '#64748b',
+                      }}>
+                        {r.sexo || '—'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.5rem 0.75rem', color: '#374151', maxWidth: 200 }}>
+                      <span title={r.nombreEstablecimiento || ''}>
+                        {r.nombreEstablecimiento
+                          ? r.nombreEstablecimiento.length > 28
+                            ? r.nombreEstablecimiento.substring(0, 28) + '…'
+                            : r.nombreEstablecimiento
+                          : '—'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.5rem 0.75rem', color: '#374151', whiteSpace: 'nowrap' }}>
+                      {r.epcCiudad || '—'}
+                    </td>
+                    <td style={{ padding: '0.5rem 0.75rem', color: '#374151', whiteSpace: 'nowrap' }}>
+                      {r.epcDepartamento || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Paginación */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginTop: '1rem', flexWrap: 'wrap', gap: '0.5rem',
+          }}>
+            <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+              Mostrando {((patientPage - 1) * patientPageSize) + 1}–{Math.min(patientPage * patientPageSize, filteredRecords.length)} de {filteredRecords.length.toLocaleString()}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button
+                onClick={() => setPatientPage(1)}
+                disabled={patientPage === 1}
+                style={{
+                  padding: '0.25rem 0.5rem', minWidth: 32, borderRadius: 6,
+                  border: '1px solid #e2e8f0', background: patientPage === 1 ? '#f8fafc' : '#fff',
+                  color: patientPage === 1 ? '#cbd5e1' : '#374151',
+                  cursor: patientPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.8rem',
+                }}
+              >«</button>
+              <button
+                onClick={() => setPatientPage(p => Math.max(1, p - 1))}
+                disabled={patientPage === 1}
+                style={{
+                  padding: '0.25rem 0.5rem', minWidth: 32, borderRadius: 6,
+                  border: '1px solid #e2e8f0', background: patientPage === 1 ? '#f8fafc' : '#fff',
+                  color: patientPage === 1 ? '#cbd5e1' : '#374151',
+                  cursor: patientPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.8rem',
+                }}
+              >‹</button>
+
+              {Array.from({ length: Math.min(5, patientTotalPages) }, (_, i) => {
+                let page: number;
+                if (patientTotalPages <= 5) {
+                  page = i + 1;
+                } else if (patientPage <= 3) {
+                  page = i + 1;
+                } else if (patientPage >= patientTotalPages - 2) {
+                  page = patientTotalPages - 4 + i;
+                } else {
+                  page = patientPage - 2 + i;
+                }
+                return (
+                  <button
+                    key={page}
+                    onClick={() => setPatientPage(page)}
+                    style={{
+                      padding: '0.25rem 0.5rem', minWidth: 32, borderRadius: 6,
+                      border: page === patientPage ? '1.5px solid #0d9488' : '1px solid #e2e8f0',
+                      background: page === patientPage ? 'rgba(13,148,136,0.08)' : '#fff',
+                      color: page === patientPage ? '#0d9488' : '#374151',
+                      fontWeight: page === patientPage ? 700 : 400,
+                      cursor: 'pointer', fontSize: '0.8rem',
+                    }}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+
+              <button
+                onClick={() => setPatientPage(p => Math.min(patientTotalPages, p + 1))}
+                disabled={patientPage === patientTotalPages}
+                style={{
+                  padding: '0.25rem 0.5rem', minWidth: 32, borderRadius: 6,
+                  border: '1px solid #e2e8f0',
+                  background: patientPage === patientTotalPages ? '#f8fafc' : '#fff',
+                  color: patientPage === patientTotalPages ? '#cbd5e1' : '#374151',
+                  cursor: patientPage === patientTotalPages ? 'not-allowed' : 'pointer', fontSize: '0.8rem',
+                }}
+              >›</button>
+              <button
+                onClick={() => setPatientPage(patientTotalPages)}
+                disabled={patientPage === patientTotalPages}
+                style={{
+                  padding: '0.25rem 0.5rem', minWidth: 32, borderRadius: 6,
+                  border: '1px solid #e2e8f0',
+                  background: patientPage === patientTotalPages ? '#f8fafc' : '#fff',
+                  color: patientPage === patientTotalPages ? '#cbd5e1' : '#374151',
+                  cursor: patientPage === patientTotalPages ? 'not-allowed' : 'pointer', fontSize: '0.8rem',
+                }}
+              >»</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
