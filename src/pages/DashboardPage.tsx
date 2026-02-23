@@ -167,7 +167,7 @@ export default function DashboardPage() {
     });
   }, [allRecords, filters]);
 
-  // KPIs
+  // ============ KPIs ============
   const kpis = useMemo(() => {
     const totalRegistros = filteredRecords.length;
     const departamentosUnicos = new Set(filteredRecords.map(r => r.epcDepartamento).filter(Boolean)).size;
@@ -254,7 +254,7 @@ export default function DashboardPage() {
     return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
   }, [filteredRecords]);
 
-  // ============ ENFERMEDADES MÁS COMUNES (TODAS) ============
+  // ============ ENFERMEDADES MÁS COMUNES ============
   const enfermedadesChart = useMemo(() => {
     const enfermedades = [
       { key: 'hipertensionHTA', name: 'Hipertensión (HTA)' },
@@ -284,7 +284,6 @@ export default function DashboardPage() {
       .filter(([_, value]) => value > 0)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
-    // ✅ Sin .slice() — se muestran TODAS las enfermedades
   }, [filteredRecords]);
 
   // ============ LOCALIZACIÓN: EPC_DEPARTAMENTO ============
@@ -302,7 +301,6 @@ export default function DashboardPage() {
         value: pacientes.size,
       }))
       .sort((a, b) => b.value - a.value);
-    // ✅ Sin .slice() — se muestran TODOS los departamentos
   }, [filteredRecords]);
 
   // ============ LOCALIZACIÓN: EPC_CIUDAD ============
@@ -320,7 +318,6 @@ export default function DashboardPage() {
         value: pacientes.size,
       }))
       .sort((a, b) => b.value - a.value);
-    // ✅ Sin .slice() — se muestran TODAS las ciudades
   }, [filteredRecords]);
 
   // ============ LOCALIZACIÓN: REGIONAL_NORMALIZADA ============
@@ -337,7 +334,7 @@ export default function DashboardPage() {
       .sort((a, b) => b.value - a.value);
   }, [filteredRecords]);
 
-  // ============ NOMBRE_ESTABLECIMIENTO (tabla lateral del mapa) ============
+  // ============ NOMBRE_ESTABLECIMIENTO ============
   const nombreEstablecimientoChart = useMemo(() => {
     const counts: Record<string, number> = {};
     filteredRecords.forEach(r => {
@@ -354,11 +351,11 @@ export default function DashboardPage() {
       .sort((a, b) => b.value - a.value);
   }, [filteredRecords]);
 
-  // ============ TIPOS DE CÁNCER ============
+  // ============ TIPOS DE CÁNCER — ✅ CORREGIDO: tipoDeCancer ============
   const cancerTypesChart = useMemo(() => {
     const counts: Record<string, number> = {};
     filteredRecords.forEach(r => {
-      const tipo = ((r as any).tipoCancer || '').trim();
+      const tipo = ((r as any).tipoDeCancer || '').trim(); // ← campo correcto
       if (tipo) counts[tipo] = (counts[tipo] || 0) + 1;
     });
     return Object.entries(counts)
@@ -366,7 +363,24 @@ export default function DashboardPage() {
       .sort((a, b) => b.value - a.value);
   }, [filteredRecords]);
 
-  // ============ MAP DATA ============
+  // ============ INTERVENCIONES POR PROCESO ============
+  const intervencionesChart = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredRecords.forEach(r => {
+      const proceso = (
+        (r as any).procesoRealizado ||
+        (r as any).agrupadorServicios ||
+        r.tipoServicio ||
+        ''
+      ).trim() || 'Sin proceso';
+      counts[proceso] = (counts[proceso] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [filteredRecords]);
+
+  // ============ MAP DATA — ✅ CORREGIDO: hombres/mujeres desde sexo ============
   const recordsForMap = useMemo(() => {
     return allRecords.filter(r => {
       if (filters.tipoServicio && r.tipoServicio !== filters.tipoServicio) return false;
@@ -391,6 +405,7 @@ export default function DashboardPage() {
     const map: Record<string, {
       casos: number; valorTotal: number; pacientes: Set<string>;
       conTutela: number; sinTutela: number;
+      hombres: number; mujeres: number;           // ← NUEVO
       tipoServicios: Record<string, number>;
       agrupadorServicios: Record<string, number>;
     }> = {};
@@ -400,14 +415,21 @@ export default function DashboardPage() {
       if (!map[depto]) map[depto] = {
         casos: 0, valorTotal: 0, pacientes: new Set(),
         conTutela: 0, sinTutela: 0,
+        hombres: 0, mujeres: 0,                   // ← NUEVO
         tipoServicios: {},
         agrupadorServicios: {},
       };
+
       map[depto].casos += 1;
       map[depto].valorTotal += r.valorTotal || 0;
       if (r.numeroDocumento) map[depto].pacientes.add(r.numeroDocumento);
 
-      // Tutela — se mantiene el cálculo para no romper ColombiaMap
+      // ── Sexo ── ✅ NUEVO
+      const sexo = (r.sexo || '').trim().toLowerCase();
+      if (sexo === 'masculino') map[depto].hombres += 1;
+      else if (sexo === 'femenino') map[depto].mujeres += 1;
+
+      // ── Tutela ──
       const tutUsuario = String(r.tutelaUsuario || '').toUpperCase().trim();
       const tutCampo = String(r.tutela || '').toUpperCase().trim();
       const esSinTutelaUsuario = tutUsuario === '' || tutUsuario === 'SIN TUTELA' || tutUsuario === 'NO' || tutUsuario === 'N' || tutUsuario === '0' || tutUsuario === 'FALSE';
@@ -418,7 +440,7 @@ export default function DashboardPage() {
         map[depto].sinTutela += 1;
       }
 
-      // Tipo servicio — se mantiene para no romper ColombiaMap
+      // ── Tipo servicio ──
       const ts = (r.tipoServicio || '').trim();
       if (ts) {
         const tsKey = ts.charAt(0).toUpperCase() + ts.slice(1).toLowerCase();
@@ -427,7 +449,7 @@ export default function DashboardPage() {
         map[depto].tipoServicios['Sin tipo'] = (map[depto].tipoServicios['Sin tipo'] || 0) + 1;
       }
 
-      // Agrupador
+      // ── Agrupador ──
       const agr = (r.agrupadorServicios || '').trim();
       if (agr) {
         const agrKey = agr.charAt(0).toUpperCase() + agr.slice(1).toLowerCase();
@@ -438,20 +460,26 @@ export default function DashboardPage() {
     const result: Record<string, {
       casos: number; valorTotal: number; pacientes: number;
       conTutela: number; sinTutela: number;
+      hombres: number; mujeres: number;           // ← NUEVO
       tipoServicios: Record<string, number>;
       agrupadorServicios: Record<string, number>;
     }> = {};
+
     for (const [k, v] of Object.entries(map)) {
       result[k] = {
-        casos: v.casos, valorTotal: v.valorTotal, pacientes: v.pacientes.size,
-        conTutela: v.conTutela, sinTutela: v.sinTutela,
+        casos: v.casos,
+        valorTotal: v.valorTotal,
+        pacientes: v.pacientes.size,
+        conTutela: v.conTutela,
+        sinTutela: v.sinTutela,
+        hombres: v.hombres,                       // ← NUEVO
+        mujeres: v.mujeres,                       // ← NUEVO
         tipoServicios: v.tipoServicios,
         agrupadorServicios: v.agrupadorServicios,
       };
     }
     return result;
   }, [recordsForMap]);
-
 
   const activeFilterCount = Object.entries(filters).filter(([k, v]) => k !== 'tipoRegistro' && v).length + (filters.tipoRegistro !== 'all' ? 1 : 0);
   const clearFilters = () => setFilters(emptyFilters);
@@ -524,7 +552,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Filters - Main Row */}
+      {/* ============ FILTROS PRINCIPALES ============ */}
       <div className="dashboard-filters">
         <div className="filter-field">
           <label><HiFilter size={14} style={{ display: 'inline', marginRight: '0.25rem' }} />Tipo</label>
@@ -588,7 +616,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Filters - Advanced Section */}
+      {/* ============ FILTROS AVANZADOS ============ */}
       {advancedFiltersOpen && (
         <div className="dashboard-filters-advanced">
           <div className="filter-field">
@@ -655,7 +683,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Active filter tags */}
+      {/* ============ TAGS DE FILTROS ACTIVOS ============ */}
       {activeFilterCount > 0 && (
         <div className="active-filters">
           {filters.tipoRegistro !== 'all' && (
@@ -709,7 +737,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* KPI Cards */}
+      {/* ============ KPI CARDS ============ */}
       <div className="kpi-row">
         <div className="kpi-card">
           <div className="kpi-main">
@@ -814,18 +842,13 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ============ MAPA + TABLA NOMBRE ESTABLECIMIENTO ============ */}
-     
-        <ColombiaMap
-          departmentData={departmentMapData}
-          onDepartmentClick={handleMapDepartmentClick}
-          selectedDepartment={filters.epcDepartamento}
-          nombreEstablecimientoData={nombreEstablecimientoChart}
-        />
-
-        {/* Tabla NOMBRE_ESTABLECIMIENTO */}
-
-      
+      {/* ============ MAPA ============ */}
+      <ColombiaMap
+        departmentData={departmentMapData}
+        onDepartmentClick={handleMapDepartmentClick}
+        selectedDepartment={filters.epcDepartamento}
+        nombreEstablecimientoData={nombreEstablecimientoChart}
+      />
 
       {filteredRecords.length === 0 ? (
         <div className="chart-card" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
@@ -944,7 +967,7 @@ export default function DashboardPage() {
 
           {/* ============ EPC_DEPARTAMENTO / EPC_CIUDAD / REGIONAL_NORMALIZADA ============ */}
           <div className="charts-row" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-            {/* EPC_DEPARTAMENTO */}
+
             <div className="chart-card" style={{ animationDelay: '0.2s' }}>
               <div className="chart-header">
                 <div>
@@ -953,24 +976,27 @@ export default function DashboardPage() {
                 </div>
                 <span className="chart-badge">{departamentoPacientesChart.length} deptos</span>
               </div>
-              <ResponsiveContainer width="100%" height={Math.max(280, departamentoPacientesChart.length * 32)}>
-                <BarChart data={departamentoPacientesChart} layout="vertical" margin={{ left: 5, right: 20 }}>
-                  <defs>
-                    <linearGradient id="gradDeptoPacientes" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#0d9488" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#0d9488" stopOpacity={0.5} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 9.5, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Pacientes']} contentStyle={TOOLTIP_STYLE} />
-                  <Bar dataKey="value" name="Pacientes" fill="url(#gradDeptoPacientes)" radius={[0, 6, 6, 0]} barSize={22} />
-                </BarChart>
-              </ResponsiveContainer>
+              <div style={{ overflowY: 'auto', maxHeight: 340, paddingRight: 4 }}>
+                <div style={{ height: Math.max(280, departamentoPacientesChart.length * 32), minWidth: 0 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={departamentoPacientesChart} layout="vertical" margin={{ left: 5, right: 20 }}>
+                      <defs>
+                        <linearGradient id="gradDeptoPacientes" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#0d9488" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="#0d9488" stopOpacity={0.5} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                      <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 9.5, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                      <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Pacientes']} contentStyle={TOOLTIP_STYLE} />
+                      <Bar dataKey="value" name="Pacientes" fill="url(#gradDeptoPacientes)" radius={[0, 6, 6, 0]} barSize={22} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
 
-            {/* EPC_CIUDAD */}
             <div className="chart-card" style={{ animationDelay: '0.28s' }}>
               <div className="chart-header">
                 <div>
@@ -979,20 +1005,25 @@ export default function DashboardPage() {
                 </div>
                 <span className="chart-badge">{ciudadPacientesChart.length} ciudades</span>
               </div>
-              <ResponsiveContainer width="100%" height={Math.max(280, ciudadPacientesChart.length * 28)}>
-                <BarChart data={ciudadPacientesChart} layout="vertical" margin={{ left: 5, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 9.5, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Pacientes']} contentStyle={TOOLTIP_STYLE} />
-                  <Bar dataKey="value" name="Pacientes" radius={[0, 6, 6, 0]} barSize={18}>
-                    {ciudadPacientesChart.map((_, i) => <Cell key={`ciudad-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <div style={{ overflowY: 'auto', maxHeight: 340, paddingRight: 4 }}>
+                <div style={{ height: Math.max(280, ciudadPacientesChart.length * 28), minWidth: 0 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={ciudadPacientesChart} layout="vertical" margin={{ left: 5, right: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                      <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 9.5, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                      <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Pacientes']} contentStyle={TOOLTIP_STYLE} />
+                      <Bar dataKey="value" name="Pacientes" radius={[0, 6, 6, 0]} barSize={18}>
+                        {ciudadPacientesChart.map((_, i) => (
+                          <Cell key={`ciudad-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
 
-            {/* REGIONAL_NORMALIZADA */}
             <div className="chart-card" style={{ animationDelay: '0.36s' }}>
               <div className="chart-header">
                 <div>
@@ -1001,47 +1032,54 @@ export default function DashboardPage() {
                 </div>
                 <span className="chart-badge">{regionPacientesChart.length} regiones</span>
               </div>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <defs>
-                    {[['#14b8a6', '#0d9488'], ['#60a5fa', '#3b82f6'], ['#fbbf24', '#f59e0b'], ['#f87171', '#ef4444'], ['#a78bfa', '#8b5cf6'],
-                    ['#22d3ee', '#06b6d4'], ['#4ade80', '#22c55e'], ['#f472b6', '#ec4899'], ['#fb923c', '#f97316'], ['#818cf8', '#6366f1']].map(([light, dark], i) => (
-                      <linearGradient key={`rpg-${i}`} id={`region-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor={light} stopOpacity={1} />
-                        <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
-                      </linearGradient>
-                    ))}
-                    <filter id="regionPieShadow" x="-20%" y="-20%" width="140%" height="140%">
-                      <feDropShadow dx="0" dy="4" stdDeviation="6" floodOpacity="0.18" />
-                    </filter>
-                  </defs>
-                  <Pie data={regionPacientesChart} cx="50%" cy="45%" innerRadius={55} outerRadius={105} paddingAngle={4}
-                    dataKey="value" cornerRadius={6} animationBegin={200} animationDuration={1400}
-                    stroke="rgba(255,255,255,0.6)" strokeWidth={2}
-                    onMouseEnter={(_, index) => setHoveredRegionIdx(index)}
-                    onMouseLeave={() => setHoveredRegionIdx(null)}
-                    label={false} labelLine={false}
-                    style={{ filter: 'url(#regionPieShadow)', cursor: 'pointer' }}>
-                    {regionPacientesChart.map((_, i) => (
-                      <Cell key={`region-pie-${i}`} fill={`url(#region-pie-grad-${i % 10})`} />
-                    ))}
-                  </Pie>
-                  {hoveredRegionIdx !== null && regionPacientesChart[hoveredRegionIdx] && (
-                    <text x="50%" y="42%" textAnchor="middle" dominantBaseline="central"
-                      style={{ fontSize: 26, fontWeight: 800, fill: '#0f172a' }}>
-                      {regionPacientesChart[hoveredRegionIdx].value.toLocaleString()}
-                    </text>
-                  )}
-                  {hoveredRegionIdx !== null && regionPacientesChart[hoveredRegionIdx] && (
-                    <text x="50%" y="52%" textAnchor="middle" dominantBaseline="central"
-                      style={{ fontSize: 11, fontWeight: 600, fill: '#64748b' }}>
-                      {regionPacientesChart[hoveredRegionIdx].name}
-                    </text>
-                  )}
-                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Pacientes']} contentStyle={TOOLTIP_STYLE} />
-                  <Legend iconType="circle" iconSize={10} wrapperStyle={{ paddingTop: '0.75rem', fontSize: '0.8rem' }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div style={{ height: 340, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <defs>
+                      {[['#14b8a6', '#0d9488'], ['#60a5fa', '#3b82f6'], ['#fbbf24', '#f59e0b'], ['#f87171', '#ef4444'], ['#a78bfa', '#8b5cf6'],
+                        ['#22d3ee', '#06b6d4'], ['#4ade80', '#22c55e'], ['#f472b6', '#ec4899'], ['#fb923c', '#f97316'], ['#818cf8', '#6366f1']].map(([light, dark], i) => (
+                          <linearGradient key={`rpg-${i}`} id={`region-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stopColor={light} stopOpacity={1} />
+                            <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
+                          </linearGradient>
+                        ))}
+                      <filter id="regionPieShadow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="4" stdDeviation="6" floodOpacity="0.18" />
+                      </filter>
+                    </defs>
+                    <Pie
+                      data={regionPacientesChart}
+                      cx="50%" cy="42%"
+                      innerRadius={55} outerRadius={100}
+                      paddingAngle={4} dataKey="value" cornerRadius={6}
+                      animationBegin={200} animationDuration={1400}
+                      stroke="rgba(255,255,255,0.6)" strokeWidth={2}
+                      onMouseEnter={(_, index) => setHoveredRegionIdx(index)}
+                      onMouseLeave={() => setHoveredRegionIdx(null)}
+                      label={false} labelLine={false}
+                      style={{ filter: 'url(#regionPieShadow)', cursor: 'pointer' }}
+                    >
+                      {regionPacientesChart.map((_, i) => (
+                        <Cell key={`region-pie-${i}`} fill={`url(#region-pie-grad-${i % 10})`} />
+                      ))}
+                    </Pie>
+                    {hoveredRegionIdx !== null && regionPacientesChart[hoveredRegionIdx] && (
+                      <text x="50%" y="39%" textAnchor="middle" dominantBaseline="central"
+                        style={{ fontSize: 26, fontWeight: 800, fill: '#0f172a' }}>
+                        {regionPacientesChart[hoveredRegionIdx].value.toLocaleString()}
+                      </text>
+                    )}
+                    {hoveredRegionIdx !== null && regionPacientesChart[hoveredRegionIdx] && (
+                      <text x="50%" y="47%" textAnchor="middle" dominantBaseline="central"
+                        style={{ fontSize: 11, fontWeight: 600, fill: '#64748b' }}>
+                        {regionPacientesChart[hoveredRegionIdx].name}
+                      </text>
+                    )}
+                    <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Pacientes']} contentStyle={TOOLTIP_STYLE} />
+                    <Legend iconType="circle" iconSize={10} wrapperStyle={{ paddingTop: '0.5rem', fontSize: '0.75rem' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 
@@ -1080,12 +1118,12 @@ export default function DashboardPage() {
                 <PieChart>
                   <defs>
                     {[['#14b8a6', '#0d9488'], ['#60a5fa', '#3b82f6'], ['#fbbf24', '#f59e0b'], ['#f87171', '#ef4444'], ['#a78bfa', '#8b5cf6'],
-                    ['#22d3ee', '#06b6d4'], ['#4ade80', '#22c55e'], ['#f472b6', '#ec4899'], ['#fb923c', '#f97316'], ['#818cf8', '#6366f1']].map(([light, dark], i) => (
-                      <linearGradient key={`etn-${i}`} id={`etnicos-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor={light} stopOpacity={1} />
-                        <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
-                      </linearGradient>
-                    ))}
+                      ['#22d3ee', '#06b6d4'], ['#4ade80', '#22c55e'], ['#f472b6', '#ec4899'], ['#fb923c', '#f97316'], ['#818cf8', '#6366f1']].map(([light, dark], i) => (
+                        <linearGradient key={`etn-${i}`} id={`etnicos-pie-grad-${i}`} x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stopColor={light} stopOpacity={1} />
+                          <stop offset="100%" stopColor={dark} stopOpacity={0.85} />
+                        </linearGradient>
+                      ))}
                   </defs>
                   <Pie data={gruposEtnicosChart} cx="50%" cy="50%" innerRadius={60} outerRadius={110} paddingAngle={4}
                     dataKey="value" cornerRadius={6}
@@ -1099,41 +1137,66 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ============ TIPOS DE CÁNCER ============ */}
+          {/* ============ TIPOS DE CÁNCER ✅ ============ */}
           {cancerTypesChart.length > 0 && (
             <div className="chart-card" style={{ animationDelay: '0.55s' }}>
               <div className="chart-header">
                 <div>
-                  <div className="chart-title">Tipos de Cáncer</div>
-                  <div className="chart-subtitle">Distribución de diagnósticos oncológicos de mayor a menor</div>
+                  <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: '1.1rem' }}>🎗️</span>
+                    Tipos de Cáncer
+                  </div>
+                  <div className="chart-subtitle">
+                    Distribución de diagnósticos oncológicos · {cancerTypesChart.length} tipos registrados
+                  </div>
                 </div>
-                <span className="chart-badge">{cancerTypesChart.length} tipos</span>
+                <span className="chart-badge">{cancerTypesChart.reduce((s, d) => s + d.value, 0).toLocaleString()} registros</span>
               </div>
-              <ResponsiveContainer width="100%" height={Math.max(300, cancerTypesChart.length * 40)}>
-                <BarChart data={cancerTypesChart} layout="vertical" margin={{ left: 10, right: 30, top: 10, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    width={200}
-                    tick={{ fontSize: 9, fill: '#64748b', fontWeight: 500 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v: string) => v.length > 30 ? v.substring(0, 30) + '...' : v}
-                  />
-                  <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Registros']} contentStyle={TOOLTIP_STYLE} />
-                  <Bar dataKey="value" name="Registros" radius={[0, 6, 6, 0]} barSize={28}>
-                    {cancerTypesChart.map((_, i) => (
-                      <Cell key={`cancer-type-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <div style={{ overflowY: 'auto', maxHeight: 480, paddingRight: 4 }}>
+                <div style={{ height: Math.max(300, cancerTypesChart.length * 38), minWidth: 0 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={cancerTypesChart} layout="vertical" margin={{ left: 10, right: 40, top: 8, bottom: 8 }}>
+                      <defs>
+                        <linearGradient id="gradCancerTypes" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#0d9488" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.75} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                      <YAxis
+                        dataKey="name"
+                        type="category"
+                        width={210}
+                        tick={{ fontSize: 9, fill: '#64748b', fontWeight: 500 }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v: string) => v.length > 32 ? v.substring(0, 32) + '…' : v}
+                      />
+                      <Tooltip
+                        formatter={(value: number) => [value.toLocaleString(), 'Registros']}
+                        contentStyle={TOOLTIP_STYLE}
+                      />
+                      <Bar
+                        dataKey="value"
+                        name="Registros"
+                        fill="url(#gradCancerTypes)"
+                        radius={[0, 6, 6, 0]}
+                        barSize={26}
+                        label={{ position: 'right', fontSize: 10, fill: '#64748b', formatter: (v: number) => v.toLocaleString() }}
+                      >
+                        {cancerTypesChart.map((_, i) => (
+                          <Cell key={`cancer-type-${i}`} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* ============ ENFERMEDADES MÁS COMUNES (TODAS) ============ */}
+          {/* ============ ENFERMEDADES MÁS COMUNES ============ */}
           <div className="chart-card" style={{ animationDelay: '0.58s' }}>
             <div className="chart-header">
               <div>
@@ -1164,6 +1227,9 @@ export default function DashboardPage() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+
+          {/* ============ INTERVENCIONES POR PROCESO ============ */}
+          
 
         </div>
       )}

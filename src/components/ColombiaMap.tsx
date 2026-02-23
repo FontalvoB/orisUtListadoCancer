@@ -3,12 +3,14 @@ import { geoMercator, geoPath } from 'd3-geo';
 import type { FeatureCollection, Geometry } from 'geojson';
 import colombiaGeoData from '../data/colombia-departments.json';
 
+
 // ── Types ──────────────────────────────────────────────────────────
 interface DepartmentProperties {
   DPTO_CCDGO: string;
   DPTO_CNMBR: string;
   [key: string]: unknown;
 }
+
 
 interface DeptData {
   casos: number;
@@ -18,7 +20,10 @@ interface DeptData {
   sinTutela: number;
   tipoServicios: Record<string, number>;
   agrupadorServicios: Record<string, number>;
+  hombres?: number;
+  mujeres?: number;
 }
+
 
 interface EstablecimientoRow {
   name: string;
@@ -26,12 +31,14 @@ interface EstablecimientoRow {
   pct: string;
 }
 
+
 interface ColombiaMapProps {
   departmentData: Record<string, DeptData>;
   onDepartmentClick: (departmentName: string) => void;
   selectedDepartment?: string;
   nombreEstablecimientoData?: EstablecimientoRow[];
 }
+
 
 // ── Name normaliser ────────────────────────────────────────────────
 const normalizeName = (name: string): string =>
@@ -44,6 +51,7 @@ const normalizeName = (name: string): string =>
     .replace(/SAN ANDRES.*/, 'SAN ANDRES')
     .trim();
 
+
 const matchDepartment = (
   geoName: string,
   dataKeys: string[],
@@ -55,8 +63,10 @@ const matchDepartment = (
   });
 };
 
+
 // ── Colour helpers ─────────────────────────────────────────────────
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
 
 const heatColor = (t: number): string => {
   if (t <= 0) return 'rgb(220,237,230)';
@@ -76,10 +86,12 @@ const heatColor = (t: number): string => {
   return `rgb(${Math.round(lerp(240, 200, s))},${Math.round(lerp(100, 40, s))},${Math.round(lerp(40, 40, s))})`;
 };
 
+
 // ── Zoom constants ─────────────────────────────────────────────────
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 6;
 const ZOOM_STEP = 0.25;
+
 
 // ── Component ──────────────────────────────────────────────────────
 export default function ColombiaMap({
@@ -92,6 +104,7 @@ export default function ColombiaMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
+
   const [tooltip, setTooltip] = useState<{
     x: number;
     y: number;
@@ -99,16 +112,19 @@ export default function ColombiaMap({
     data: DeptData | null;
   } | null>(null);
 
+
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 500, height: 540 });
   const [animReady, setAnimReady] = useState(false);
   const [detailDept, setDetailDept] = useState<string | null>(null);
+
 
   // ── Zoom & Pan state ──
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+
 
   // ── Responsive sizing ──
   useEffect(() => {
@@ -124,11 +140,13 @@ export default function ColombiaMap({
     return () => ro.disconnect();
   }, []);
 
+
   // ── Entrance animation ──
   useEffect(() => {
     const t = setTimeout(() => setAnimReady(true), 100);
     return () => clearTimeout(t);
   }, []);
+
 
   // ── GeoJSON data ──
   const geo = useMemo(
@@ -136,11 +154,13 @@ export default function ColombiaMap({
     [],
   );
 
+
   const dataKeys = useMemo(() => Object.keys(departmentData), [departmentData]);
   const maxCasos = useMemo(() => {
     const vals = Object.values(departmentData).map((d) => d.casos);
     return Math.max(1, ...vals);
   }, [departmentData]);
+
 
   // ── Projection + path generator ──
   const pathGen = useMemo(() => {
@@ -150,6 +170,7 @@ export default function ColombiaMap({
       .translate([dimensions.width / 2, dimensions.height / 2]);
     return geoPath().projection(proj);
   }, [dimensions]);
+
 
   // ── Centroids for labels ──
   const centroids = useMemo(() => {
@@ -162,6 +183,7 @@ export default function ColombiaMap({
     });
     return map;
   }, [geo, pathGen]);
+
 
   // ── Wheel zoom ──
   useEffect(() => {
@@ -188,6 +210,7 @@ export default function ColombiaMap({
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
+
   // ── Mouse drag to pan ──
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -198,6 +221,7 @@ export default function ColombiaMap({
     },
     [pan],
   );
+
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
@@ -210,9 +234,11 @@ export default function ColombiaMap({
     [isPanning],
   );
 
+
   const onPointerUp = useCallback(() => {
     setIsPanning(false);
   }, []);
+
 
   // ── Zoom button handlers ──
   const zoomIn = useCallback(() => {
@@ -225,6 +251,7 @@ export default function ColombiaMap({
     setZoom(1);
     setPan({ x: 0, y: 0 });
   }, []);
+
 
   // ── Zoom to a specific feature ──
   const zoomToFeature = useCallback(
@@ -247,6 +274,7 @@ export default function ColombiaMap({
     [pathGen, dimensions],
   );
 
+
   // ── Tooltip handler ──
   const handleMouseMove = useCallback(
     (e: React.MouseEvent, name: string, data: DeptData | null) => {
@@ -259,13 +287,16 @@ export default function ColombiaMap({
     [isPanning],
   );
 
+
   const handleMouseLeave = useCallback(() => {
     setTooltip(null);
     setHoveredId(null);
   }, []);
 
+
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
+
 
   const legendStops = useMemo(() => {
     const n = 6;
@@ -275,17 +306,21 @@ export default function ColombiaMap({
     });
   }, [maxCasos]);
 
+
   // ── Detail panel data ──
   const generalData = useMemo(() => {
     const all = Object.values(departmentData);
     if (all.length === 0) return null;
     return {
       name: 'Colombia - General',
-      casos: all.reduce((s, d) => s + d.casos, 0),
-      valorTotal: all.reduce((s, d) => s + d.valorTotal, 0),
-      pacientes: all.reduce((s, d) => s + d.pacientes, 0),
+      casos:      all.reduce((s, d) => s + d.casos,           0),
+      valorTotal: all.reduce((s, d) => s + d.valorTotal,      0),
+      pacientes:  all.reduce((s, d) => s + d.pacientes,       0),
+      hombres:    all.reduce((s, d) => s + (d.hombres ?? 0),  0),
+      mujeres:    all.reduce((s, d) => s + (d.mujeres ?? 0),  0),
     };
   }, [departmentData]);
+
 
   const detailData = useMemo(() => {
     if (!detailDept) return null;
@@ -297,7 +332,9 @@ export default function ColombiaMap({
     return key ? { name: key, ...departmentData[key] } : null;
   }, [detailDept, departmentData]);
 
+
   const panelData = detailDept && detailData ? detailData : generalData;
+
 
   const prettyName = (raw: string) =>
     raw
@@ -310,10 +347,12 @@ export default function ColombiaMap({
       .replace('Archipielago De ', '')
       .replace(', Providencia Y Santa Catalina', '');
 
+
   const invZoom = 1 / zoom;
   const labelFontName = Math.max(7, Math.round(11 * invZoom));
   const labelFontCount = Math.max(6, Math.round(10 * invZoom));
   const strokeScale = invZoom;
+
 
   return (
     <div className="colombia-map-wrapper" ref={containerRef}>
@@ -341,8 +380,10 @@ export default function ColombiaMap({
         </div>
       </div>
 
+
       {/* ── Map + Detail layout ── */}
       <div className={`colombia-map-layout ${panelData ? 'with-detail' : ''}`}>
+
 
         {/* ── Map ── */}
         <div
@@ -361,6 +402,7 @@ export default function ColombiaMap({
             <button onClick={zoomOut} disabled={zoom <= MIN_ZOOM} title="Alejar">−</button>
             <button onClick={resetView} title="Restablecer vista" className="map-zoom-reset">⟲</button>
           </div>
+
 
           <svg
             ref={svgRef}
@@ -396,7 +438,9 @@ export default function ColombiaMap({
               </clipPath>
             </defs>
 
+
             <rect x="0" y="0" width={dimensions.width} height={dimensions.height} fill="url(#bgGlow)" rx="16" />
+
 
             <g clipPath="url(#mapClip)">
               <g
@@ -420,6 +464,7 @@ export default function ColombiaMap({
                   })}
                 </g>
 
+
                 {/* Departments */}
                 <g filter="url(#bevel)">
                   {geo.features.map((feature, idx) => {
@@ -435,6 +480,7 @@ export default function ColombiaMap({
                       ? normalizeName(selectedDepartment) === normalizeName(geoName) ||
                         (matchedKey ? normalizeName(selectedDepartment) === normalizeName(matchedKey) : false)
                       : false;
+
 
                     return (
                       <path
@@ -465,6 +511,7 @@ export default function ColombiaMap({
                     );
                   })}
                 </g>
+
 
                 {/* Labels */}
                 {animReady &&
@@ -508,6 +555,7 @@ export default function ColombiaMap({
             </g>
           </svg>
 
+
           {/* ── Tooltip ── */}
           {tooltip && !isPanning && (
             <div
@@ -539,28 +587,85 @@ export default function ColombiaMap({
           )}
         </div>
 
+
         {/* ── Detail Panel ── */}
         {panelData && (
           <div className="map-detail-panel">
+
+            {/* ── Header con cards de sexo ── */}
             <div className="map-detail-header">
               <div>
                 <div className="map-detail-title">
                   {detailDept ? prettyName(panelData.name) : 'Resumen General'}
                 </div>
                 <div className="map-detail-subtitle">
-                  {detailDept ? 'Desglose departamental' : 'Todos los departamentos'}
+                  {detailDept ? 'Desglose departamental' : 'Todos los deparamentos'}
                 </div>
               </div>
-              {detailDept && (
-                <button
-                  className="map-detail-close"
-                  onClick={() => { setDetailDept(null); resetView(); }}
-                  title="Volver a vista general"
-                >
-                  ✕
-                </button>
-              )}
+
+              {/* Gender cards + close button */}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+
+                {/* Card Hombres */}
+                <div style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  background: 'rgba(59,130,246,0.08)', borderRadius: 10,
+                  padding: '5px 10px', minWidth: 58,
+                  border: '1px solid rgba(59,130,246,0.18)',
+                }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="10" cy="14" r="5" />
+                    <line x1="19" y1="5" x2="14.14" y2="9.86" />
+                    <polyline points="15 5 19 5 19 9" />
+                  </svg>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#3b82f6', marginTop: 2 }}>
+                    {(panelData.hombres ?? 0).toLocaleString()}
+                  </div>
+                  <div style={{
+                    fontSize: '0.6rem', color: '#64748b', fontWeight: 600,
+                    textTransform: 'uppercase', letterSpacing: '0.04em',
+                  }}>
+                    Hombres
+                  </div>
+                </div>
+
+                {/* Card Mujeres */}
+                <div style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  background: 'rgba(236,72,153,0.08)', borderRadius: 10,
+                  padding: '5px 10px', minWidth: 58,
+                  border: '1px solid rgba(236,72,153,0.18)',
+                }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="#ec4899" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="8" r="5" />
+                    <line x1="12" y1="13" x2="12" y2="21" />
+                    <line x1="9" y1="18" x2="15" y2="18" />
+                  </svg>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ec4899', marginTop: 2 }}>
+                    {(panelData.mujeres ?? 0).toLocaleString()}
+                  </div>
+                  <div style={{
+                    fontSize: '0.6rem', color: '#64748b', fontWeight: 600,
+                    textTransform: 'uppercase', letterSpacing: '0.04em',
+                  }}>
+                    Mujeres
+                  </div>
+                </div>
+
+                {detailDept && (
+                  <button
+                    className="map-detail-close"
+                    onClick={() => { setDetailDept(null); resetView(); }}
+                    title="Volver a vista general"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
+
 
             {/* KPI row */}
             <div className="map-detail-kpis">
@@ -578,6 +683,7 @@ export default function ColombiaMap({
               </div>
             </div>
 
+
             {/* ── Tabla de Establecimientos ── */}
             <div className="map-detail-section">
               <div className="map-detail-section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -591,6 +697,7 @@ export default function ColombiaMap({
                   </span>
                 )}
               </div>
+
 
               {nombreEstablecimientoData.length === 0 ? (
                 <div className="map-detail-empty">Sin datos de establecimientos</div>
@@ -649,9 +756,11 @@ export default function ColombiaMap({
               )}
             </div>
 
+
           </div>
         )}
       </div> {/* END colombia-map-layout */}
+
 
       {/* ── Legend ── */}
       <div className="colombia-map-legend">
@@ -669,6 +778,7 @@ export default function ColombiaMap({
         <span className="legend-label">Más casos</span>
         <span className="legend-max">({maxCasos.toLocaleString()} max)</span>
       </div>
+
 
       {/* ── Top departments ── */}
       <div className="colombia-map-ranking">
