@@ -128,6 +128,24 @@ service cloud.firestore {
         getUserProfile().roleName in ['admin', 'superadmin', 'editor'];
     }
 
+    // ===================== IPS RECORDS COLLECTION =====================
+    match /ipsRecords/{recordId} {
+      // Any authenticated user can read IPS records
+      allow read: if isAuthenticated();
+
+      // Admin, superadmin, and editor can create records (including imports)
+      allow create: if isAuthenticated() &&
+        getUserProfile().roleName in ['admin', 'superadmin', 'editor'];
+
+      // Admin, superadmin, and editor can update records
+      allow update: if isAuthenticated() &&
+        getUserProfile().roleName in ['admin', 'superadmin', 'editor'];
+
+      // Admin, superadmin, and editor can delete records
+      allow delete: if isAuthenticated() &&
+        getUserProfile().roleName in ['admin', 'superadmin', 'editor'];
+    }
+
     // ===================== ACTIVITY LOGS COLLECTION =====================
     match /activityLogs/{logId} {
       // Any authenticated user can read activity logs (permission enforced at app level)

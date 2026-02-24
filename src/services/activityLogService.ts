@@ -38,6 +38,7 @@ export type ActivityModule =
   | "roles"
   | "cancer"
   | "arthritis"
+  | "ips"
   | "profile"
   | "system";
 
@@ -183,6 +184,7 @@ export const MODULE_LABELS: Record<ActivityModule, string> = {
   roles: "Roles",
   cancer: "Registro Cáncer",
   arthritis: "Registro Artritis",
+  ips: "Registro IPS",
   profile: "Perfil",
   system: "Sistema",
 };

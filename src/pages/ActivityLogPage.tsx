@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router-dom';
 
 const PAGE_SIZE = 30;
 
-const MODULES: ActivityModule[] = ['auth', 'users', 'roles', 'cancer', 'profile', 'system'];
+const MODULES: ActivityModule[] = ['auth', 'users', 'roles', 'cancer', 'arthritis', 'ips', 'profile', 'system'];
 const ACTIONS: ActivityAction[] = ['login', 'login_google', 'logout', 'register', 'create', 'update', 'delete', 'import', 'export', 'view'];
 
 export default function ActivityLogPage() {

@@ -174,6 +174,37 @@ export const DEFAULT_PERMISSIONS: Permission[] = [
     description: "Importar registros de artritis desde Excel",
     module: "arthritis",
   },
+  // IPS Registry
+  {
+    id: "ips.view",
+    name: "Ver Registros IPS",
+    description: "Ver registros de IPS",
+    module: "ips",
+  },
+  {
+    id: "ips.create",
+    name: "Crear Registros IPS",
+    description: "Crear registros de IPS",
+    module: "ips",
+  },
+  {
+    id: "ips.edit",
+    name: "Editar Registros IPS",
+    description: "Editar registros de IPS",
+    module: "ips",
+  },
+  {
+    id: "ips.delete",
+    name: "Eliminar Registros IPS",
+    description: "Eliminar registros de IPS",
+    module: "ips",
+  },
+  {
+    id: "ips.import",
+    name: "Importar Excel IPS",
+    description: "Importar registros de IPS desde Excel",
+    module: "ips",
+  },
   // Activity Log
   {
     id: "activity.view",
@@ -214,6 +245,11 @@ export const DEFAULT_ROLES: Omit<Role, "id" | "createdAt" | "updatedAt">[] = [
       "arthritis.edit",
       "arthritis.delete",
       "arthritis.import",
+      "ips.view",
+      "ips.create",
+      "ips.edit",
+      "ips.delete",
+      "ips.import",
       "activity.view",
     ],
   },
@@ -226,6 +262,7 @@ export const DEFAULT_ROLES: Omit<Role, "id" | "createdAt" | "updatedAt">[] = [
       "profiles.view",
       "cancer.view",
       "arthritis.view",
+      "ips.view",
     ],
   },
 ];
@@ -417,4 +454,60 @@ export const EXCEL_TO_FIELD_MAP: Record<
   PSIQUIATRIA: "psiquiatria",
   "TERAPIA FISICA": "terapiaFisica",
   INTERVENCIONES: "intervenciones",
+};
+
+// ==================== IPS REGISTRY ====================
+export interface IpsRecord {
+  id: string;
+  departamento: string;
+  municipio: string;
+  region: string;
+  codigoHabilitacion: string;
+  numeroSede: string;
+  nomIps: string;
+  direccion: string;
+  telefono: string;
+  email: string;
+  nitsNit: string;
+  dv: string;
+  clasePersona: string;
+  najuCodigo: string;
+  najuNombre: string;
+  clprCodigo: string;
+  clprNombre: string;
+  grseCodigo: string;
+  tipServicio: string;
+  servCodigo: string;
+  nomServicio: string;
+  complejidad: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Map Excel column headers to IpsRecord fields
+export const EXCEL_TO_IPS_FIELD_MAP: Record<
+  string,
+  keyof Omit<IpsRecord, "id" | "createdAt" | "updatedAt">
+> = {
+  DEPARTAMENTO: "departamento",
+  MUNICIPIO: "municipio",
+  REGION: "region",
+  codigo_habilitacion: "codigoHabilitacion",
+  numero_sede: "numeroSede",
+  "NOM IPS": "nomIps",
+  DIRECCION: "direccion",
+  TELEFONO: "telefono",
+  email: "email",
+  nits_nit: "nitsNit",
+  dv: "dv",
+  clase_persona: "clasePersona",
+  naju_codigo: "najuCodigo",
+  naju_nombre: "najuNombre",
+  clpr_codigo: "clprCodigo",
+  clpr_nombre: "clprNombre",
+  grse_codigo: "grseCodigo",
+  "TIP SERVICIO": "tipServicio",
+  serv_codigo: "servCodigo",
+  "NOM SERVICIO": "nomServicio",
+  COMPLEJIDAD: "complejidad",
 };
