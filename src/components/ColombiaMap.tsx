@@ -42,6 +42,8 @@ interface ColombiaMapProps {
   riskData?: RiskRow[];
   onRiskClick?: (riesgo: string) => void;
   selectedRisk?: string;
+  /** When true: swaps patient-oriented labels for IPS-network labels */
+  ipsMode?: boolean;
 }
 
 // ── Name normaliser ────────────────────────────────────────────────
@@ -101,6 +103,7 @@ export default function ColombiaMap({
   riskData = [],
   onRiskClick,
   selectedRisk,
+  ipsMode = false,
 }: ColombiaMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -293,6 +296,8 @@ export default function ColombiaMap({
       casos:      all.reduce((s, d) => s + d.casos, 0),
       valorTotal: all.reduce((s, d) => s + d.valorTotal, 0),
       pacientes:  all.reduce((s, d) => s + d.pacientes, 0),
+      conTutela:  all.reduce((s, d) => s + (d.conTutela ?? 0), 0),
+      sinTutela:  all.reduce((s, d) => s + (d.sinTutela ?? 0), 0),
       hombres:    all.reduce((s, d) => s + (d.hombres ?? 0), 0),
       mujeres:    all.reduce((s, d) => s + (d.mujeres ?? 0), 0),
     };
@@ -335,10 +340,10 @@ export default function ColombiaMap({
         <div>
           <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: '1.25rem' }}>🗺️</span>
-            Mapa de Casos por Departamento
+            {ipsMode ? 'Distribución IPS por Departamento' : 'Mapa de Casos por Departamento'}
           </div>
           <div className="chart-subtitle">
-            Scroll para zoom · Arrastra para mover · Clic para filtrar
+            Scroll para zoom · Arrastra para mover · Clic para {ipsMode ? 'filtrar por región' : 'filtrar'}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -550,17 +555,32 @@ export default function ColombiaMap({
               {tooltip.data ? (
                 <>
                   <div className="map-tooltip-row">
-                    <span>Casos:</span>
+                    <span>{ipsMode ? 'IPS Totales:' : 'Casos:'}</span>
                     <strong>{tooltip.data.casos.toLocaleString()}</strong>
                   </div>
-                  <div className="map-tooltip-row">
-                    <span>Pacientes:</span>
-                    <strong>{tooltip.data.pacientes.toLocaleString()}</strong>
-                  </div>
-                  <div className="map-tooltip-row">
-                    <span>Valor:</span>
-                    <strong>{formatCurrency(tooltip.data.valorTotal)}</strong>
-                  </div>
+                  {ipsMode ? (
+                    <>
+                      <div className="map-tooltip-row">
+                        <span>En Red:</span>
+                        <strong style={{ color: '#0d9488' }}>{tooltip.data.pacientes.toLocaleString()}</strong>
+                      </div>
+                      <div className="map-tooltip-row">
+                        <span>Fuera de Red:</span>
+                        <strong style={{ color: '#ef4444' }}>{tooltip.data.sinTutela.toLocaleString()}</strong>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="map-tooltip-row">
+                        <span>Pacientes:</span>
+                        <strong>{tooltip.data.pacientes.toLocaleString()}</strong>
+                      </div>
+                      <div className="map-tooltip-row">
+                        <span>Valor:</span>
+                        <strong>{formatCurrency(tooltip.data.valorTotal)}</strong>
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <div className="map-tooltip-row" style={{ color: '#94a3b8', fontStyle: 'italic' }}>
@@ -587,6 +607,8 @@ export default function ColombiaMap({
               </div>
 
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                {!ipsMode ? (
+                  <>
                 {/* Card Hombres */}
                 <div style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -634,6 +656,36 @@ export default function ColombiaMap({
                     Mujeres
                   </div>
                 </div>
+                  </>
+                ) : (
+                  <>
+                    {/* IPS mode: En Red / Fuera de Red */}
+                    <div style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      background: 'rgba(13,148,136,0.08)', borderRadius: 10,
+                      padding: '5px 10px', minWidth: 58,
+                      border: '1px solid rgba(13,148,136,0.2)',
+                    }}>
+                      <div style={{ fontSize: '1rem', lineHeight: 1 }}>✔</div>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0d9488', marginTop: 2 }}>
+                        {(panelData.pacientes).toLocaleString()}
+                      </div>
+                      <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>En Red</div>
+                    </div>
+                    <div style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      background: 'rgba(239,68,68,0.08)', borderRadius: 10,
+                      padding: '5px 10px', minWidth: 58,
+                      border: '1px solid rgba(239,68,68,0.2)',
+                    }}>
+                      <div style={{ fontSize: '1rem', lineHeight: 1 }}>✘</div>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ef4444', marginTop: 2 }}>
+                        {(panelData.sinTutela ?? 0).toLocaleString()}
+                      </div>
+                      <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Fuera Red</div>
+                    </div>
+                  </>
+                )}
 
                 {detailDept && (
                   <button
@@ -651,16 +703,18 @@ export default function ColombiaMap({
             <div className="map-detail-kpis">
               <div className="map-detail-kpi" style={{ animationDelay: '0.1s' }}>
                 <div className="map-detail-kpi-value">{panelData.casos.toLocaleString()}</div>
-                <div className="map-detail-kpi-label">Casos Totales</div>
+                <div className="map-detail-kpi-label">{ipsMode ? 'IPS Totales' : 'Casos Totales'}</div>
               </div>
               <div className="map-detail-kpi" style={{ animationDelay: '0.2s' }}>
                 <div className="map-detail-kpi-value">{panelData.pacientes.toLocaleString()}</div>
-                <div className="map-detail-kpi-label">Pacientes</div>
+                <div className="map-detail-kpi-label">{ipsMode ? 'En Red' : 'Pacientes'}</div>
               </div>
+              {!ipsMode && (
               <div className="map-detail-kpi" style={{ animationDelay: '0.3s' }}>
                 <div className="map-detail-kpi-value">{formatCurrency(panelData.valorTotal)}</div>
                 <div className="map-detail-kpi-label">Valor Total</div>
               </div>
+              )}
             </div>
 
             {/* N° De Riesgo */}

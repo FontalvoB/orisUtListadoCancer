@@ -264,11 +264,12 @@ export const importIpsRecords = async (
 // ==================== GET ALL (for analytics, with cache) ====================
 export const getAllIpsRecords = async (
   forceRefresh = false,
+  onProgress?: (loaded: number, total: number) => void,
 ): Promise<IpsRecord[]> => {
   if (!forceRefresh && isCacheValid(allRecordsCache)) {
     return allRecordsCache!.data;
   }
-  const records = await exportIpsRecordsStream({});
+  const records = await exportIpsRecordsStream({}, onProgress);
   allRecordsCache = { data: records, timestamp: Date.now() };
   return records;
 };

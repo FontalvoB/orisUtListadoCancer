@@ -2,6 +2,16 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getAllCancerRecords, computeAllDistinctValues } from '../services/cancerService';
 import { getAllArthritisRecords } from '../services/arthritisService';
+import { getAllIpsRecords } from '../services/ipsService';
+import type { IpsRecord } from '../types';
+import {
+  normStr,
+  matchesRedNetwork,
+  resolveRedRegion,
+  detectServiceFlags,
+  type RedNetworkEntry,
+  RED_NETWORK,
+} from '../utils/redNetworkOptimizer';
 import {
   HiDocumentReport, HiLocationMarker, HiUserGroup,
   HiFilter, HiX, HiRefresh, HiTrendingUp, HiCalendar,
@@ -12,6 +22,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import ColombiaMap from '../components/ColombiaMap';
+
 
 const CHART_COLORS = [
   '#0d9488', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -72,16 +83,33 @@ const emptyFilters: DashboardFilters = {
 
 const PATIENT_PAGE_SIZES = [25, 50, 100];
 
+type RedCoverageFilter = 'all' | 'cobertura' | 'no-cobertura';
+
 export default function DashboardPage() {
   const { user } = useAuth();
 
   const [allCancerRecords, setAllCancerRecords] = useState<any[]>([]);
   const [allArthritisRecords, setAllArthritisRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadProgress, setLoadProgress] = useState<{ loaded: number; total: number; label: string } | null>(null);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState<DashboardFilters>(emptyFilters);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [hoveredRegionIdx, setHoveredRegionIdx] = useState<number | null>(null);
+
+  // ── Tabs ──
+  type DashTab = 'analytics' | 'red';
+  const [activeTab, setActiveTab] = useState<DashTab>('analytics');
+
+  // ── IPS Red de Prestadores ──
+  const [allIpsRecords, setAllIpsRecords]         = useState<IpsRecord[]>([]);
+  const [ipsLoading,    setIpsLoading]             = useState(false);
+  const [ipsLoaded,     setIpsLoaded]              = useState(false);
+  const [ipsError,      setIpsError]               = useState('');
+  const [redCoverageFilter, setRedCoverageFilter]  = useState<RedCoverageFilter>('all');
+  const [redRegionFilter,   setRedRegionFilter]    = useState<string>('');
+  const [ipsTablePage,      setIpsTablePage]       = useState(1);
+  const [ipsTablePageSize]                         = useState(20);
 
   // ── Tabla de pacientes ──
   const [patientPage, setPatientPage] = useState(1);
@@ -106,10 +134,26 @@ export default function DashboardPage() {
   const loadData = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError('');
+    setLoadProgress(null);
+
+    // Progress merges cancer + arthritis into a single bar
+    let cancerTotal = 0;
+    let arthritisTotal = 0;
+    let cancerLoaded = 0;
+    let arthritisLoaded = 0;
+
+    const updateProgress = (label: string, loaded: number, total: number) => {
+      if (label === 'cancer') { cancerLoaded = loaded; cancerTotal = total; }
+      else { arthritisLoaded = loaded; arthritisTotal = total; }
+      const t = (cancerTotal || 0) + (arthritisTotal || 0);
+      const l = cancerLoaded + arthritisLoaded;
+      setLoadProgress(t > 0 ? { loaded: l, total: t, label: 'Cargando registros...' } : null);
+    };
+
     try {
       const [cancerRecords, arthritisRecords] = await Promise.all([
-        getAllCancerRecords(forceRefresh),
-        getAllArthritisRecords(forceRefresh),
+        getAllCancerRecords(forceRefresh, (l, t) => updateProgress('cancer', l, t)),
+        getAllArthritisRecords(forceRefresh, (l, t) => updateProgress('arthritis', l, t)),
       ]);
       setAllCancerRecords(cancerRecords);
       setAllArthritisRecords(arthritisRecords);
@@ -150,10 +194,35 @@ export default function DashboardPage() {
       setError(err instanceof Error ? err.message : 'Error cargando datos');
     } finally {
       setLoading(false);
+      setLoadProgress(null);
     }
   }, []);
 
+  /** Loads IPS records only when the Red tab is first opened. */
+  const loadIpsData = useCallback(async (forceRefresh = false) => {
+    if (ipsLoaded && !forceRefresh) return;
+    setIpsLoading(true);
+    setIpsError('');
+    try {
+      const ips = await getAllIpsRecords(forceRefresh);
+      setAllIpsRecords(ips);
+      setIpsLoaded(true);
+    } catch (err) {
+      setIpsError(err instanceof Error ? err.message : 'Error cargando IPS');
+    } finally {
+      setIpsLoading(false);
+    }
+  }, [ipsLoaded]);
+
+  // Initial analytics load
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Lazy IPS load — fires only when Red tab is first opened
+  useEffect(() => {
+    if (activeTab === 'red' && !ipsLoaded && !ipsLoading) {
+      loadIpsData();
+    }
+  }, [activeTab, ipsLoaded, ipsLoading, loadIpsData]);
 
   // ============ RECORDS BASE ============
   const allRecords = useMemo(() => {
@@ -550,13 +619,217 @@ export default function DashboardPage() {
     filters.tutelaUsuario, filters.codigoServicio, filters.regionalNormalizada,
   ].filter(v => v).length > 0;
 
+  // ============ IPS RED DE PRESTADORES ============
+
+  /** Agrupa los registros IPS de Firestore por IPS única (nomIps + depto + municipio)
+   *  y acumula los servicios disponibles. Uses cached normalization and service detection. */
+  const ipsGrouped = useMemo(() => {
+    const map = new Map<string, {
+      nomIps: string; departamento: string; municipio: string;
+      region: string; redRegion: string;
+      consultaExterna: boolean; cx: boolean; internacion: boolean;
+      cobertura: boolean; redEntry: RedNetworkEntry | null;
+    }>();
+
+    allIpsRecords.forEach(r => {
+      // Single normalization per IPS (cached)
+      const nomIpsNorm = normStr(r.nomIps);
+      const deptNorm = normStr(r.departamento);
+      const municNorm = normStr(r.municipio);
+      const key = `${nomIpsNorm}||${deptNorm}||${municNorm}`;
+      
+      if (!map.has(key)) {
+        const redEntry = matchesRedNetwork(r.nomIps);
+        const redRegion = resolveRedRegion(r.nomIps, r.departamento);
+        map.set(key, {
+          nomIps: r.nomIps,
+          departamento: r.departamento,
+          municipio: r.municipio,
+          region: r.region,
+          redRegion,
+          consultaExterna: false,
+          cx: false,
+          internacion: false,
+          cobertura: !!redEntry,
+          redEntry,
+        });
+      }
+      
+      const entry = map.get(key)!;
+      // Use cached service detection instead of multiple string checks
+      const serviceFlags = detectServiceFlags(r.tipServicio);
+      entry.consultaExterna = entry.consultaExterna || serviceFlags.consultaExterna;
+      entry.cx = entry.cx || serviceFlags.cx;
+      entry.internacion = entry.internacion || serviceFlags.internacion;
+    });
+
+    return Array.from(map.values()).sort((a, b) => 
+      a.redRegion.localeCompare(b.redRegion) || a.departamento.localeCompare(b.departamento)
+    );
+  }, [allIpsRecords]);
+
+
+  /** Filas de la red de prestadores: primero Red Network (cobertura), luego no-red.
+   *  Si hay registros IPS en Firestore los usamos; si no, mostramos sólo RED_NETWORK estático. */
+  const ipsRedRows = useMemo(() => {
+    if (allIpsRecords.length > 0) return ipsGrouped;
+    // Fallback: mostrar sólo las IPS del listado estático
+    return RED_NETWORK.map(e => ({
+      nomIps: e.prestador, departamento: e.departamento, municipio: e.municipio,
+      region: e.region, redRegion: e.region,
+      consultaExterna: e.consultaExterna, cx: e.cx, internacion: e.internacion,
+      cobertura: true, redEntry: e,
+    }));
+  }, [allIpsRecords, ipsGrouped]);
+
+  const ipsRedFiltered = useMemo(() => {
+    return ipsRedRows.filter(r => {
+      if (redCoverageFilter === 'cobertura' && !r.cobertura) return false;
+      if (redCoverageFilter === 'no-cobertura' && r.cobertura) return false;
+      if (redRegionFilter && r.redRegion !== redRegionFilter) return false;
+      return true;
+    });
+  }, [ipsRedRows, redCoverageFilter, redRegionFilter]);
+
+  const ipsRedTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(ipsRedFiltered.length / ipsTablePageSize)),
+    [ipsRedFiltered.length, ipsTablePageSize],
+  );
+
+  const ipsRedPageData = useMemo(() => {
+    const start = (ipsTablePage - 1) * ipsTablePageSize;
+    return ipsRedFiltered.slice(start, start + ipsTablePageSize);
+  }, [ipsRedFiltered, ipsTablePage, ipsTablePageSize]);
+
+  useEffect(() => { setIpsTablePage(1); }, [redCoverageFilter, redRegionFilter]);
+
+  /** Regiones disponibles en los datos de IPS */
+  const ipsRedRegiones = useMemo(() => {
+    const s = new Set(ipsRedRows.map(r => r.redRegion).filter(Boolean));
+    return Array.from(s).sort();
+  }, [ipsRedRows]);
+
+  /** KPIs de la red - Basados en datos FILTRADOS */
+  const ipsKpis = useMemo(() => ({
+    total: ipsRedFiltered.length,
+    cobertura: ipsRedFiltered.filter(r => r.cobertura).length,
+    noCobertura: ipsRedFiltered.filter(r => !r.cobertura).length,
+    deptos: new Set(ipsRedFiltered.map(r => r.departamento)).size,
+    municipios: new Set(ipsRedFiltered.map(r => r.municipio)).size,
+  }), [ipsRedFiltered]);
+
+  /** Datos para el mapa de Colombia de IPS por departamento - Basado en datos FILTRADOS */
+  const ipsDepartmentMapDataFiltered = useMemo(() => {
+    const map: Record<string, { total: number; cobertura: number; noCobertura: number; redRegion: string }> = {};
+    ipsRedFiltered.forEach(r => {
+      const dep = r.departamento || 'Sin Departamento';
+      if (!map[dep]) map[dep] = { total: 0, cobertura: 0, noCobertura: 0, redRegion: r.redRegion };
+      map[dep].total += 1;
+      if (r.cobertura) map[dep].cobertura += 1;
+      else map[dep].noCobertura += 1;
+    });
+    // Adapt to the shape ColombiaMap expects.
+    const result: Record<string, {
+      casos: number; valorTotal: number; pacientes: number;
+      conTutela: number; sinTutela: number; hombres: number; mujeres: number;
+      tipoServicios: Record<string, number>; agrupadorServicios: Record<string, number>;
+      _redRegion: string;
+    }> = {};
+    for (const [dep, d] of Object.entries(map)) {
+      result[dep] = {
+        casos: d.total,
+        valorTotal: 0,
+        pacientes: d.cobertura,
+        conTutela: d.cobertura,
+        sinTutela: d.noCobertura,
+        hombres: 0,
+        mujeres: 0,
+        tipoServicios: { 'En Red': d.cobertura, 'Fuera de Red': d.noCobertura },
+        agrupadorServicios: {},
+        _redRegion: d.redRegion,
+      };
+    }
+    return result;
+  }, [ipsRedFiltered]);
+
+  /** Datos para el mapa de Colombia de IPS por departamento */
+  const ipsDepartmentMapData = useMemo(() => {
+    const map: Record<string, { total: number; cobertura: number; noCobertura: number; redRegion: string }> = {};
+    ipsRedRows.forEach(r => {
+      const dep = r.departamento || 'Sin Departamento';
+      if (!map[dep]) map[dep] = { total: 0, cobertura: 0, noCobertura: 0, redRegion: r.redRegion };
+      map[dep].total += 1;
+      if (r.cobertura) map[dep].cobertura += 1;
+      else map[dep].noCobertura += 1;
+    });
+    // Adapt to the shape ColombiaMap expects.
+    // casos      = total IPS in dept
+    // pacientes  = IPS en red (displayed as "En Red" in ipsMode tooltip)
+    // sinTutela  = IPS fuera de red (displayed as "Fuera de Red" in ipsMode tooltip)
+    const result: Record<string, {
+      casos: number; valorTotal: number; pacientes: number;
+      conTutela: number; sinTutela: number; hombres: number; mujeres: number;
+      tipoServicios: Record<string, number>; agrupadorServicios: Record<string, number>;
+      _redRegion: string;
+    }> = {};
+    for (const [dep, d] of Object.entries(map)) {
+      result[dep] = {
+        casos: d.total,
+        valorTotal: 0,
+        pacientes: d.cobertura,
+        conTutela: d.cobertura,
+        sinTutela: d.noCobertura,
+        hombres: 0,
+        mujeres: 0,
+        tipoServicios: { 'En Red': d.cobertura, 'Fuera de Red': d.noCobertura },
+        agrupadorServicios: {},
+        _redRegion: d.redRegion,
+      };
+    }
+    return result;
+  }, [ipsRedRows]);
+
+  /** Filtered map data: when a region filter is active, only include departments in
+   *  that region — departments outside the region are omitted so they render grey on the map.
+   *  Also applies coverage filter. */
+  const ipsDepartmentMapDataDisplay = useMemo(() => {
+    const baseData = ipsDepartmentMapDataFiltered; // Use filtered data, not all data
+    if (!redRegionFilter) return baseData;
+    const filtered: typeof baseData = {};
+    for (const [dep, d] of Object.entries(baseData)) {
+      if ((d as any)._redRegion === redRegionFilter) {
+        filtered[dep] = d;
+      }
+    }
+    return filtered;
+  }, [ipsDepartmentMapDataFiltered, redRegionFilter]);
+
   // ============ LOADING / ERROR ============
   if (loading) {
     return (
       <div className="page">
-        <div className="loading-inline">
+        <div className="loading-inline" style={{ flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
           <div className="spinner" />
-          <p style={{ fontWeight: 500 }}>Cargando datos del dashboard...</p>
+          {loadProgress ? (
+            <>
+              <p style={{ fontWeight: 500, margin: 0 }}>
+                {loadProgress.label} ({loadProgress.loaded.toLocaleString()} / {loadProgress.total.toLocaleString()})
+              </p>
+              <div style={{ width: 320, height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${Math.min(100, Math.round((loadProgress.loaded / loadProgress.total) * 100))}%`,
+                    background: 'var(--brand)',
+                    borderRadius: 4,
+                    transition: 'width 0.2s ease',
+                  }}
+                />
+              </div>
+            </>
+          ) : (
+            <p style={{ fontWeight: 500, margin: 0 }}>Cargando datos del dashboard...</p>
+          )}
         </div>
       </div>
     );
@@ -593,11 +866,45 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="header-actions">
-          <button onClick={() => loadData(true)} className="btn btn-secondary">
-            <HiRefresh size={14} /> Actualizar
-          </button>
+          {activeTab === 'analytics' && (
+            <button onClick={() => loadData(true)} className="btn btn-secondary">
+              <HiRefresh size={14} /> Actualizar
+            </button>
+          )}
+          {activeTab === 'red' && (
+            <button onClick={() => { setIpsLoaded(false); loadIpsData(true); }} className="btn btn-secondary" disabled={ipsLoading}>
+              <HiRefresh size={14} /> {ipsLoading ? 'Cargando...' : 'Actualizar Red'}
+            </button>
+          )}
         </div>
       </div>
+
+      {/* ── Tabs ── */}
+      <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '1.25rem', borderBottom: '2px solid #e2e8f0' }}>
+        {(['analytics', 'red'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              padding: '0.55rem 1.25rem',
+              fontSize: '0.875rem',
+              fontWeight: activeTab === tab ? 700 : 400,
+              color: activeTab === tab ? 'var(--brand)' : '#6b7280',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: activeTab === tab ? '2.5px solid var(--brand)' : '2.5px solid transparent',
+              marginBottom: '-2px',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            {tab === 'analytics' ? '📊 Analíticas' : '🏥 Red de Prestadores'}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Analytics tab ── */}
+      {activeTab === 'analytics' && (<>
 
       {/* ── Filtros principales ── */}
       <div className="dashboard-filters">
@@ -1602,6 +1909,305 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      )}
+
+      </>)}{/* end analytics tab */}
+
+      {/* ── Red de Prestadores tab ── */}
+      {activeTab === 'red' && (
+        ipsLoading ? (
+          <div className="loading-inline" style={{ flexDirection: 'column', gap: '0.75rem', padding: '4rem 0' }}>
+            <div className="spinner" />
+            <p style={{ fontWeight: 500, margin: 0 }}>Cargando Red de Prestadores...</p>
+          </div>
+        ) : ipsError ? (
+          <div className="alert alert-error" style={{ marginTop: '1rem' }}>
+            {ipsError}
+            <button onClick={() => loadIpsData(true)} className="btn btn-primary" style={{ marginLeft: '1rem' }}>Reintentar</button>
+          </div>
+        ) : (
+        <>
+
+      {/* ══ Mapa Colombia IPS por Departamento/Región ══ */}
+      <div className="chart-card" style={{ marginTop: '0' }}>
+        <div className="chart-header" style={{ marginBottom: '0.75rem' }}>
+          <div>
+            <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <HiLocationMarker size={18} style={{ color: '#3b82f6' }} />
+              Distribución Geográfica de la Red IPS
+            </div>
+            <div className="chart-subtitle">
+              Prestadores por departamento · azul = mayor cobertura
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.75rem', color: '#0d9488', fontWeight: 600 }}>
+              <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#0d9488', display: 'inline-block' }} />
+              En Red
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.75rem', color: '#ef4444', fontWeight: 600 }}>
+              <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+              Fuera de Red
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.75rem', color: '#64748b' }}>
+              (Haz clic en un departamento para filtrar la tabla de red)
+            </span>
+          </div>
+        </div>
+
+        {/* Leyenda de regiones */}
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+          {[
+            { label: 'NORTE', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+            { label: 'CENTRAL', color: '#0d9488', bg: 'rgba(13,148,136,0.1)' },
+            { label: 'VIEJO CALDAS', color: '#b45309', bg: 'rgba(245,158,11,0.1)' },
+            { label: 'OCCIDENTE', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
+            { label: 'SUR', color: '#ec4899', bg: 'rgba(236,72,153,0.1)' },
+            { label: 'OTRAS', color: '#64748b', bg: 'rgba(100,116,139,0.08)' },
+          ].map(reg => (
+            <button
+              key={reg.label}
+              onClick={() => setRedRegionFilter(redRegionFilter === reg.label ? '' : reg.label)}
+              style={{
+                padding: '0.25rem 0.75rem', borderRadius: 20, fontSize: '0.75rem', fontWeight: 700,
+                background: redRegionFilter === reg.label ? reg.color : reg.bg,
+                color: redRegionFilter === reg.label ? '#fff' : reg.color,
+                border: `1.5px solid ${reg.color}44`, cursor: 'pointer', transition: 'all 0.15s',
+              }}
+            >
+              {reg.label}
+            </button>
+          ))}
+          {redRegionFilter && (
+            <button
+              onClick={() => setRedRegionFilter('')}
+              style={{
+                padding: '0.25rem 0.6rem', borderRadius: 20, fontSize: '0.75rem',
+                border: '1px solid #e2e8f0', background: '#fff', color: '#64748b',
+                cursor: 'pointer',
+              }}
+            >
+              <HiX size={11} style={{ display: 'inline', marginRight: 2 }} /> Limpiar región
+            </button>
+          )}
+        </div>
+
+        <ColombiaMap
+          departmentData={ipsDepartmentMapDataDisplay}
+          onDepartmentClick={(depName) => {
+            if (!depName) { setRedRegionFilter(''); return; }
+            // Find the region of the clicked dept and toggle it as a region filter
+            const allData = ipsDepartmentMapData;
+            const depKey = Object.keys(allData).find(k =>
+              normStr(k).includes(normStr(depName)) ||
+              normStr(depName).includes(normStr(k))
+            );
+            if (depKey) {
+              const region = (allData[depKey] as any)._redRegion as string;
+              setRedRegionFilter(prev => prev === region ? '' : region);
+            }
+          }}
+          ipsMode
+          nombreEstablecimientoData={[]}
+          riskData={[]}
+        />
+      </div>
+
+      {/* ════════════════════════════════════════════════════════
+           RED DE PRESTADORES
+          ════════════════════════════════════════════════════════ */}
+      <div className="chart-card" style={{ marginTop: '1.5rem' }}>
+
+        {/* Cabecera */}
+        <div className="chart-header" style={{ marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <div className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <HiLocationMarker size={18} style={{ color: 'var(--brand)' }} />
+              Red de Prestadores — Cobertura por Municipio / Departamento / Región
+            </div>
+            <div className="chart-subtitle">
+              {ipsKpis.cobertura} en red &nbsp;·&nbsp; {ipsKpis.noCobertura} fuera de red &nbsp;·&nbsp;
+              {ipsKpis.deptos} departamentos &nbsp;·&nbsp; {ipsKpis.municipios} municipios
+            </div>
+          </div>
+          {/* Filtros de red */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+              {(['all', 'cobertura', 'no-cobertura'] as const).map(opt => (
+                <button
+                  key={opt}
+                  onClick={() => setRedCoverageFilter(opt)}
+                  style={{
+                    padding: '0.35rem 0.75rem',
+                    fontSize: '0.775rem',
+                    fontWeight: redCoverageFilter === opt ? 700 : 400,
+                    background: redCoverageFilter === opt
+                      ? opt === 'cobertura' ? '#0d9488' : opt === 'no-cobertura' ? '#ef4444' : '#6366f1'
+                      : '#fff',
+                    color: redCoverageFilter === opt ? '#fff' : '#64748b',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  {opt === 'all' ? 'Todas' : opt === 'cobertura' ? '✔ Cobertura' : '✘ No Cobertura'}
+                </button>
+              ))}
+            </div>
+            <select
+              value={redRegionFilter}
+              onChange={e => setRedRegionFilter(e.target.value)}
+              style={{
+                fontSize: '0.8rem', padding: '0.35rem 0.6rem',
+                borderRadius: 8, border: '1px solid #e2e8f0',
+                background: '#fff', color: '#374151', cursor: 'pointer',
+              }}
+            >
+              <option value="">Todas las regiones</option>
+              {ipsRedRegiones.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* KPI mini-cards de red */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+          gap: '0.75rem', marginBottom: '1.25rem',
+        }}>
+          {[
+            { label: 'Total IPS', value: ipsKpis.total, color: '#6366f1', bg: 'rgba(99,102,241,0.08)' },
+            { label: 'En Red', value: ipsKpis.cobertura, color: '#0d9488', bg: 'rgba(13,148,136,0.08)' },
+            { label: 'Fuera de Red', value: ipsKpis.noCobertura, color: '#ef4444', bg: 'rgba(239,68,68,0.08)' },
+            { label: 'Departamentos', value: ipsKpis.deptos, color: '#3b82f6', bg: 'rgba(59,130,246,0.08)' },
+            { label: 'Municipios', value: ipsKpis.municipios, color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
+          ].map(k => (
+            <div key={k.label} style={{
+              background: k.bg, borderRadius: 10, padding: '0.75rem 1rem',
+              border: `1px solid ${k.color}22`,
+            }}>
+              <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500, marginBottom: 2 }}>{k.label}</div>
+              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: k.color }}>{k.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tabla */}
+        <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid #f1f5f9' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', minWidth: 800 }}>
+            <thead>
+              <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                {['Prestador / IPS', 'Municipio', 'Departamento', 'Región (Red)', 'Cons. Externa', 'CX', 'Internación', 'Cobertura'].map(col => (
+                  <th key={col} style={{
+                    padding: '0.6rem 0.75rem', textAlign: 'left',
+                    color: '#64748b', fontWeight: 600, fontSize: '0.72rem',
+                    textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap',
+                  }}>
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ipsRedPageData.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
+                    No hay IPS que coincidan con los filtros seleccionados.
+                  </td>
+                </tr>
+              ) : ipsRedPageData.map((row, i) => (
+                <tr
+                  key={`${row.nomIps}-${i}`}
+                  style={{ borderBottom: '1px solid #f8fafc', transition: 'background 0.12s' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <td style={{ padding: '0.5rem 0.75rem', color: '#0f172a', fontWeight: 500, maxWidth: 260 }}>
+                    <span title={row.nomIps}>{row.nomIps.length > 40 ? row.nomIps.substring(0, 40) + '…' : row.nomIps}</span>
+                  </td>
+                  <td style={{ padding: '0.5rem 0.75rem', color: '#374151', whiteSpace: 'nowrap' }}>{row.municipio || '—'}</td>
+                  <td style={{ padding: '0.5rem 0.75rem', color: '#374151', whiteSpace: 'nowrap' }}>{row.departamento || '—'}</td>
+                  <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>
+                    <span style={{
+                      display: 'inline-block', padding: '0.15rem 0.6rem',
+                      borderRadius: 20, fontSize: '0.72rem', fontWeight: 700,
+                      background: row.redRegion === 'NORTE' ? 'rgba(59,130,246,0.1)'
+                        : row.redRegion === 'CENTRAL' ? 'rgba(13,148,136,0.1)'
+                        : row.redRegion === 'VIEJO CALDAS' ? 'rgba(245,158,11,0.1)'
+                        : row.redRegion === 'OCCIDENTE' ? 'rgba(139,92,246,0.1)'
+                        : row.redRegion === 'SUR' ? 'rgba(236,72,153,0.1)'
+                        : 'rgba(100,116,139,0.08)',
+                      color: row.redRegion === 'NORTE' ? '#3b82f6'
+                        : row.redRegion === 'CENTRAL' ? '#0d9488'
+                        : row.redRegion === 'VIEJO CALDAS' ? '#b45309'
+                        : row.redRegion === 'OCCIDENTE' ? '#8b5cf6'
+                        : row.redRegion === 'SUR' ? '#ec4899'
+                        : '#64748b',
+                    }}>
+                      {row.redRegion || '—'}
+                    </span>
+                  </td>
+                  {[row.consultaExterna, row.cx, row.internacion].map((val, vi) => (
+                    <td key={vi} style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+                      {val
+                        ? <span style={{ color: '#0d9488', fontWeight: 700, fontSize: '1rem' }}>✔</span>
+                        : <span style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>—</span>}
+                    </td>
+                  ))}
+                  <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+                    <span style={{
+                      display: 'inline-block', padding: '0.15rem 0.65rem',
+                      borderRadius: 20, fontSize: '0.72rem', fontWeight: 700,
+                      background: row.cobertura ? 'rgba(13,148,136,0.1)' : 'rgba(239,68,68,0.1)',
+                      color: row.cobertura ? '#0d9488' : '#ef4444',
+                    }}>
+                      {row.cobertura ? 'Cobertura' : 'No Cobertura'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Paginación tabla IPS */}
+        {ipsRedTotalPages > 1 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginTop: '1rem', flexWrap: 'wrap', gap: '0.5rem',
+          }}>
+            <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+              Mostrando {((ipsTablePage - 1) * ipsTablePageSize) + 1}–{Math.min(ipsTablePage * ipsTablePageSize, ipsRedFiltered.length)} de {ipsRedFiltered.length}
+            </span>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={() => setIpsTablePage(1)} disabled={ipsTablePage === 1}
+                style={{ padding: '0.25rem 0.5rem', minWidth: 32, borderRadius: 6, border: '1px solid #e2e8f0', background: ipsTablePage === 1 ? '#f8fafc' : '#fff', color: ipsTablePage === 1 ? '#cbd5e1' : '#374151', cursor: ipsTablePage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.8rem' }}>«</button>
+              <button onClick={() => setIpsTablePage(p => Math.max(1, p - 1))} disabled={ipsTablePage === 1}
+                style={{ padding: '0.25rem 0.5rem', minWidth: 32, borderRadius: 6, border: '1px solid #e2e8f0', background: ipsTablePage === 1 ? '#f8fafc' : '#fff', color: ipsTablePage === 1 ? '#cbd5e1' : '#374151', cursor: ipsTablePage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.8rem' }}>‹</button>
+              {Array.from({ length: Math.min(5, ipsRedTotalPages) }, (_, i) => {
+                let page = i + 1;
+                if (ipsRedTotalPages > 5) {
+                  if (ipsTablePage <= 3) page = i + 1;
+                  else if (ipsTablePage >= ipsRedTotalPages - 2) page = ipsRedTotalPages - 4 + i;
+                  else page = ipsTablePage - 2 + i;
+                }
+                return (
+                  <button key={page} onClick={() => setIpsTablePage(page)}
+                    style={{ padding: '0.25rem 0.5rem', minWidth: 32, borderRadius: 6, border: page === ipsTablePage ? '1.5px solid #0d9488' : '1px solid #e2e8f0', background: page === ipsTablePage ? 'rgba(13,148,136,0.08)' : '#fff', color: page === ipsTablePage ? '#0d9488' : '#374151', fontWeight: page === ipsTablePage ? 700 : 400, cursor: 'pointer', fontSize: '0.8rem' }}>
+                    {page}
+                  </button>
+                );
+              })}
+              <button onClick={() => setIpsTablePage(p => Math.min(ipsRedTotalPages, p + 1))} disabled={ipsTablePage === ipsRedTotalPages}
+                style={{ padding: '0.25rem 0.5rem', minWidth: 32, borderRadius: 6, border: '1px solid #e2e8f0', background: ipsTablePage === ipsRedTotalPages ? '#f8fafc' : '#fff', color: ipsTablePage === ipsRedTotalPages ? '#cbd5e1' : '#374151', cursor: ipsTablePage === ipsRedTotalPages ? 'not-allowed' : 'pointer', fontSize: '0.8rem' }}>›</button>
+              <button onClick={() => setIpsTablePage(ipsRedTotalPages)} disabled={ipsTablePage === ipsRedTotalPages}
+                style={{ padding: '0.25rem 0.5rem', minWidth: 32, borderRadius: 6, border: '1px solid #e2e8f0', background: ipsTablePage === ipsRedTotalPages ? '#f8fafc' : '#fff', color: ipsTablePage === ipsRedTotalPages ? '#cbd5e1' : '#374151', cursor: ipsTablePage === ipsRedTotalPages ? 'not-allowed' : 'pointer', fontSize: '0.8rem' }}>»</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      </>
+      )
       )}
 
     </div>

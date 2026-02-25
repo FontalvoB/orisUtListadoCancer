@@ -32,7 +32,9 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL     = 30 * 60 * 1000; // 30 minutes in-memory
+const LS_CACHE_KEY  = 'cache_arthritisRecords';
+const LS_CACHE_TTL  = 30 * 60 * 1000; // 30 minutes localStorage
 
 let allRecordsCache: CacheEntry<ArthritisRecord[]> | null = null;
 let countCache: CacheEntry<Record<string, number>> = { data: {}, timestamp: 0 };
@@ -43,10 +45,43 @@ const isCacheValid = <T>(
   return cache !== null && Date.now() - cache.timestamp < CACHE_TTL;
 };
 
+// ── localStorage helpers ────────────────────────────────────────────────
+const loadFromStorage = (): ArthritisRecord[] | null => {
+  try {
+    const raw = localStorage.getItem(LS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed: { data: ArthritisRecord[]; timestamp: number } = JSON.parse(raw);
+    if (Date.now() - parsed.timestamp > LS_CACHE_TTL) {
+      localStorage.removeItem(LS_CACHE_KEY);
+      return null;
+    }
+    return parsed.data.map(r => ({
+      ...r,
+      createdAt: new Date(r.createdAt),
+      updatedAt: new Date(r.updatedAt),
+    }));
+  } catch {
+    return null;
+  }
+};
+
+const saveToStorage = (records: ArthritisRecord[]) => {
+  try {
+    localStorage.setItem(LS_CACHE_KEY, JSON.stringify({ data: records, timestamp: Date.now() }));
+  } catch {
+    /* storage full or unavailable — ignore */
+  }
+};
+
+const clearStorage = () => {
+  try { localStorage.removeItem(LS_CACHE_KEY); } catch { /* ignore */ }
+};
+
 /** Invalidate all caches — call after create/update/delete/import */
 export const invalidateArthritisCache = () => {
   allRecordsCache = null;
   countCache = { data: {}, timestamp: 0 };
+  clearStorage();
 };
 
 const toDate = (ts: Timestamp | Date | undefined): Date => {
@@ -337,17 +372,48 @@ export const computeArthritisDistinctValues = (
   return Array.from(values).sort();
 };
 
-// ==================== GET ALL RECORDS (for analytics, with cache) ====================
+// ==================== GET ALL RECORDS (for analytics, with cache + streaming) ====================
 export const getAllArthritisRecords = async (
   forceRefresh = false,
+  onProgress?: (loaded: number, total: number) => void,
 ): Promise<ArthritisRecord[]> => {
+  // 1. In-memory cache hit
   if (!forceRefresh && isCacheValid(allRecordsCache)) {
     return allRecordsCache!.data;
   }
-  const snap = await getDocs(collection(db, COLLECTION));
-  const records = snap.docs.map(docToRecord);
-  allRecordsCache = { data: records, timestamp: Date.now() };
-  return records;
+  // 2. localStorage cache hit
+  if (!forceRefresh) {
+    const stored = loadFromStorage();
+    if (stored) {
+      allRecordsCache = { data: stored, timestamp: Date.now() };
+      return stored;
+    }
+  }
+  // 3. Stream from Firestore in batches of 500
+  const BATCH = 500;
+  const all: ArthritisRecord[] = [];
+  let lastDoc: DocumentSnapshot | null = null;
+  let hasMore = true;
+
+  let total = 0;
+  try {
+    total = (await getCountFromServer(collection(db, COLLECTION))).data().count;
+  } catch { /* ignore */ }
+
+  while (hasMore) {
+    const constraints: QueryConstraint[] = [limit(BATCH)];
+    if (lastDoc) constraints.push(startAfter(lastDoc));
+    const snap = await getDocs(query(collection(db, COLLECTION), ...constraints));
+    const batch = snap.docs.map(docToRecord);
+    all.push(...batch);
+    lastDoc = snap.docs[snap.docs.length - 1] ?? null;
+    hasMore = snap.docs.length === BATCH;
+    onProgress?.(all.length, total || all.length);
+  }
+
+  allRecordsCache = { data: all, timestamp: Date.now() };
+  saveToStorage(all);
+  return all;
 };
 
 // ==================== DELETE ALL (for reimport) ====================
